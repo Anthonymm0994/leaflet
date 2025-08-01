@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet - Arrow Data Explorer</title>
+    
+    <!-- Embedded Dark Mode CSS -->
+    <style>
+        /* Dark Mode CSS */
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --accent-primary: #58a6ff;
+            --accent-secondary: #1f6feb;
+            --accent-success: #238636;
+            --accent-warning: #d29922;
+            --accent-danger: #da3633;
+            --border-color: #30363d;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 1rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        h1, h2, h3, h4 {
+            margin: 0 0 1rem 0;
+            color: var(--text-primary);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+        
+        button {
+            background: var(--accent-primary);
+            color: var(--text-primary);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow);
+        }
+        
+        button:hover {
+            background: var(--accent-secondary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        button.outline {
+            background: transparent;
+            color: var(--accent-primary);
+            border: 2px solid var(--accent-primary);
+        }
+        
+        button.outline:hover {
+            background: var(--accent-primary);
+            color: var(--text-primary);
+        }
+        
+        .schema-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        
+        .schema-table th,
+        .schema-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .schema-table th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            font-size: 0.875rem;
+            letter-spacing: 0.5px;
+        }
+        
+        .schema-table tr:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .visualization-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .chart-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            position: relative;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+        
+        .chart-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        .chart-card .close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: var(--accent-danger);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            transition: all 0.2s ease;
+        }
+        
+        .chart-card .close:hover {
+            background: #f85149;
+            transform: scale(1.1);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .stat-card {
+            background: var(--bg-secondary);
+            padding: 1.5rem;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        .stat-card h4 {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card p {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin: 0;
+        }
+        
+        .field-selector {
+            margin: 1.5rem 0;
+        }
+        
+        .field-option {
+            display: inline-block;
+            margin: 0.5rem;
+        }
+        
+        .field-option input[type="checkbox"] {
+            display: none;
+        }
+        
+        .field-option label {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+        }
+        
+        .field-option input[type="checkbox"]:checked + label {
+            background: var(--accent-primary);
+            color: var(--text-primary);
+            border-color: var(--accent-primary);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        article {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .status-success {
+            background: var(--accent-success);
+            color: white;
+        }
+        
+        .status-loading {
+            background: var(--accent-warning);
+            color: white;
+        }
+        
+        .status-error {
+            background: var(--accent-danger);
+            color: white;
+        }
+        
+        code {
+            background: var(--bg-tertiary);
+            color: var(--accent-primary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+        }
+        
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 1rem 0;
+        }
+        
+        .chart-placeholder {
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        
+        .chart-placeholder .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>🌿 Leaflet</h1>
+            <p>Interactive Arrow Data Explorer</p>
+        </header>
+
+        <!-- Dataset Info Section -->
+        <article>
+            <div id="file-info" class="hidden">
+                <h3>📊 Dataset Info</h3>
+                <div id="dataset-stats" class="stats-grid"></div>
+                
+                <h3>📋 Schema</h3>
+                <table class="schema-table">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Type</th>
+                            <th>Null Count</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="schema-body"></tbody>
+                </table>
+            </div>
+        </article>
+
+        <!-- Visualization Controls -->
+        <article id="viz-controls" class="hidden">
+            <header>
+                <h2>📈 Visualizations</h2>
+            </header>
+            
+            <div class="field-selector">
+                <h4>Select Fields for Visualization:</h4>
+                <div id="field-options"></div>
+            </div>
+
+            <div class="grid">
+                <button id="create-histogram" class="outline">📊 Histogram</button>
+                <button id="create-scatter" class="outline">📈 Scatter Plot</button>
+                <button id="create-timeline" class="outline">⏰ Timeline</button>
+                <button id="show-summary" class="outline">📋 Summary Stats</button>
+            </div>
+        </article>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <h3>Loading Arrow Data</h3>
+            <p>🔄 Processing your dataset...</p>
+            <div style="margin-top: 2rem; font-size: 0.9rem; color: var(--text-secondary);">
+                Check the browser console (F12) for detailed progress
+            </div>
+        </div>
+
+        <!-- Visualizations Container -->
+        <div id="visualizations" class="visualization-container"></div>
+    </main>
+
+    <!-- External Libraries with Fallback -->
+    <script>
+        // Check if we can load from CDN, otherwise show offline message
+        let librariesLoaded = false;
+        
+        function loadLibraries() {
+            return new Promise((resolve, reject) => {
+                // Try to load from CDN first
+                const script1 = document.createElement('script');
+                script1.src = 'https://cdn.jsdelivr.net/npm/apache-arrow@14.0.2/+esm';
+                script1.type = 'module';
+                script1.onload = () => {
+                    const script2 = document.createElement('script');
+                    script2.src = 'https://cdn.jsdelivr.net/npm/arquero@5.0.0-beta.8/+esm';
+                    script2.type = 'module';
+                    script2.onload = () => {
+                        const script3 = document.createElement('script');
+                        script3.src = 'https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6/+esm';
+                        script3.type = 'module';
+                        script3.onload = () => {
+                            librariesLoaded = true;
+                            resolve();
+                        };
+                        script3.onerror = () => {
+                            showOfflineMessage();
+                            reject(new Error('Failed to load Observable Plot'));
+                        };
+                        document.head.appendChild(script3);
+                    };
+                    script2.onerror = () => {
+                        showOfflineMessage();
+                        reject(new Error('Failed to load Arquero'));
+                    };
+                    document.head.appendChild(script2);
+                };
+                script1.onerror = () => {
+                    showOfflineMessage();
+                    reject(new Error('Failed to load Apache Arrow'));
+                };
+                document.head.appendChild(script1);
+            });
+        }
+        
+        function showOfflineMessage() {
+            const loadingDiv = document.getElementById('loading');
+            loadingDiv.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <h3>⚠️ Offline Mode</h3>
+                    <p>This application requires an internet connection to load the required libraries.</p>
+                    <p>Please connect to the internet and refresh the page.</p>
+                    <button onclick="location.reload()" style="margin-top: 1rem;">🔄 Retry</button>
+                </div>
+            `;
+        }
+    </script>
+
+    <!-- Embedded Application Logic -->
+    <script>
+        // Global state
+        let currentTable = null;
+        let currentSchema = null;
+        let currentDataFile = '';
+
+        // DOM elements
+        const loadingIndicator = document.getElementById('loading');
+        const fileInfo = document.getElementById('file-info');
+        const vizControls = document.getElementById('viz-controls');
+        const datasetStats = document.getElementById('dataset-stats');
+        const schemaBody = document.getElementById('schema-body');
+        const fieldOptions = document.getElementById('field-options');
+        const visualizations = document.getElementById('visualizations');
+
+        // Event listeners for visualization buttons
+        const createHistogramBtn = document.getElementById('create-histogram');
+        const createScatterBtn = document.getElementById('create-scatter');
+        const createTimelineBtn = document.getElementById('create-timeline');
+        const showSummaryBtn = document.getElementById('show-summary');
+
+        // Initialize the application
+        async function init() {
+            try {
+                await loadLibraries();
+                setupVisualizationButtons();
+                loadDataFromFolder();
+            } catch (error) {
+                console.error('Failed to initialize:', error);
+            }
+        }
+
+        // Setup visualization button handlers
+        function setupVisualizationButtons() {
+            createHistogramBtn.addEventListener('click', createHistogram);
+            createScatterBtn.addEventListener('click', createScatter);
+            createTimelineBtn.addEventListener('click', createTimeline);
+            showSummaryBtn.addEventListener('click', showSummary);
+        }
+
+        // Load data from the data folder
+        async function loadDataFromFolder() {
+            console.log('🌿 Leaflet: Starting data load from data folder...');
+            showLoading(true);
+            
+            try {
+                // Get all .arrow files from the data folder
+                const response = await fetch('data/');
+                const text = await response.text();
+                
+                // Simple regex to find .arrow files
+                const arrowFiles = text.match(/href="([^"]*\.arrow)"/g)?.map(match => {
+                    const href = match.match(/href="([^"]*)"/)?.[1];
+                    return href ? `data/${href}` : null;
+                }).filter(Boolean);
+                
+                if (arrowFiles.length === 0) {
+                    throw new Error('No .arrow files found in data folder');
+                }
+                
+                // For now, just load the first file
+                const fileToLoad = arrowFiles[0];
+                console.log(`📦 Loading: ${fileToLoad}`);
+                
+                await loadArrowFile(fileToLoad);
+                
+            } catch (error) {
+                console.error('❌ Error loading data:', error);
+                showErrorMessage(`Failed to load data: ${error instanceof Error ? error.message : String(error)}`);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Load a specific Arrow file
+        async function loadArrowFile(filePath) {
+            try {
+                console.log(`🔄 Loading Arrow file: ${filePath}`);
+                
+                const response = await fetch(filePath);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                console.log(`✅ Data loaded: ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+                
+                await processArrowData(arrayBuffer);
+                currentDataFile = filePath;
+                
+            } catch (error) {
+                console.error('❌ Error loading Arrow file:', error);
+                throw error;
+            }
+        }
+
+        // Process Arrow data
+        async function processArrowData(arrayBuffer) {
+            try {
+                console.log('🔄 Parsing Arrow data...');
+                
+                // Parse Arrow data using Apache Arrow JS
+                const arrowTable = arrow.tableFromIPC(arrayBuffer);
+                console.log('✅ Arrow table parsed successfully');
+                
+                currentSchema = arrowTable.schema;
+                console.log(`📋 Schema: ${currentSchema.fields.length} fields`);
+                
+                // Convert to Arquero table
+                currentTable = aq.from(arrowTable);
+                console.log('✅ Converted to Arquero table');
+                console.log(`📊 Arrow table rows: ${arrowTable.numRows}`);
+                console.log(`📊 Arquero table rows: ${currentTable.numRows()}`);
+                
+                // Display dataset information
+                displayDatasetInfo();
+                displaySchema();
+                setupFieldOptions();
+                
+                // Show visualization controls
+                vizControls.classList.remove('hidden');
+                fileInfo.classList.remove('hidden');
+                
+                console.log('🎉 Data loaded successfully!');
+                
+            } catch (error) {
+                console.error('❌ Error processing Arrow data:', error);
+                showErrorMessage(`Arrow parsing error: ${error instanceof Error ? error.message : String(error)}\n\nThis might indicate an incompatible Arrow format.`);
+            }
+        }
+
+        // Display dataset statistics
+        function displayDatasetInfo() {
+            if (!currentTable) return;
+            
+            const numRows = currentTable.numRows();
+            const numCols = currentTable.numCols();
+            
+            console.log(`📊 Dataset Info: ${numRows.toLocaleString()} rows, ${numCols} columns`);
+            console.log(`📁 File: ${currentDataFile}`);
+            
+            datasetStats.innerHTML = `
+                <div class="stat-card">
+                    <h4>📊 Rows</h4>
+                    <p>${numRows.toLocaleString()}</p>
+                </div>
+                <div class="stat-card">
+                    <h4>📋 Columns</h4>
+                    <p>${numCols}</p>
+                </div>
+                <div class="stat-card">
+                    <h4>📁 File</h4>
+                    <p>${currentDataFile.split('/').pop()}</p>
+                </div>
+                <div class="stat-card">
+                    <h4>🔄 Status</h4>
+                    <p><span class="status-badge status-success">✅ Loaded</span></p>
+                </div>
+            `;
+        }
+
+        // Display schema information
+        function displaySchema() {
+            if (!currentSchema || !currentTable) return;
+            
+            schemaBody.innerHTML = '';
+            
+            currentSchema.fields.forEach((field) => {
+                try {
+                    const nullCount = currentTable.filter(aq.selector(field.name)).isNull().count().get('count');
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><strong>${field.name}</strong></td>
+                        <td><code>${field.type.toString()}</code></td>
+                        <td>${nullCount.toLocaleString()}</td>
+                        <td>
+                            <button onclick="window.analyzeField('${field.name}')" class="outline">Analyze</button>
+                        </td>
+                    `;
+                    schemaBody.appendChild(row);
+                } catch (error) {
+                    console.warn(`Could not analyze field ${field.name}:`, error);
+                }
+            });
+        }
+
+        // Setup field selection options
+        function setupFieldOptions() {
+            if (!currentTable) return;
+            
+            fieldOptions.innerHTML = '';
+            const columnNames = currentTable.columnNames();
+            
+            columnNames.forEach((columnName) => {
+                const option = document.createElement('div');
+                option.className = 'field-option';
+                option.innerHTML = `
+                    <input type="checkbox" id="field-${columnName}" name="selected-fields" value="${columnName}">
+                    <label for="field-${columnName}">${columnName}</label>
+                `;
+                fieldOptions.appendChild(option);
+            });
+        }
+
+        // Get selected fields
+        function getSelectedFields() {
+            const checkboxes = document.querySelectorAll('input[name="selected-fields"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        // Create histogram visualization
+        function createHistogram() {
+            const selectedFields = getSelectedFields();
+            if (selectedFields.length === 0) {
+                showErrorMessage('Please select at least one field for the histogram.');
+                return;
+            }
+            
+            if (!currentTable) return;
+            
+            const field = selectedFields[0];
+            const data = currentTable.select(field).object();
+            
+            try {
+                const chart = Plot.plot({
+                    title: `Histogram of ${field}`,
+                    y: { grid: true },
+                    marks: [
+                        Plot.rectY(data, Plot.binX({ y: "count" }, { x: field }))
+                    ]
+                });
+                
+                addVisualization(chart, `Histogram - ${field}`);
+            } catch (error) {
+                console.error('Error creating histogram:', error);
+                showErrorMessage(`Failed to create histogram: ${error.message}`);
+            }
+        }
+
+        // Create scatter plot visualization
+        function createScatter() {
+            const selectedFields = getSelectedFields();
+            if (selectedFields.length < 2) {
+                showErrorMessage('Please select at least two fields for the scatter plot.');
+                return;
+            }
+            
+            if (!currentTable) return;
+            
+            const xField = selectedFields[0];
+            const yField = selectedFields[1];
+            const data = currentTable.select([xField, yField]).object();
+            
+            try {
+                const chart = Plot.plot({
+                    title: `Scatter Plot: ${xField} vs ${yField}`,
+                    x: { grid: true },
+                    y: { grid: true },
+                    marks: [
+                        Plot.dot(data, { x: xField, y: yField })
+                    ]
+                });
+                
+                addVisualization(chart, `Scatter - ${xField} vs ${yField}`);
+            } catch (error) {
+                console.error('Error creating scatter plot:', error);
+                showErrorMessage(`Failed to create scatter plot: ${error.message}`);
+            }
+        }
+
+        // Create timeline visualization
+        function createTimeline() {
+            const selectedFields = getSelectedFields();
+            if (selectedFields.length === 0) {
+                showErrorMessage('Please select at least one field for the timeline.');
+                return;
+            }
+            
+            if (!currentTable) return;
+            
+            const timeField = selectedFields[0];
+            const data = currentTable.select(timeField).object();
+            
+            // Try to parse as dates if the field looks like a timestamp
+            const processedData = data.map((row) => {
+                const value = row[timeField];
+                if (typeof value === 'string' && !isNaN(Date.parse(value))) {
+                    return { [timeField]: new Date(value) };
+                }
+                return row;
+            });
+            
+            try {
+                const chart = Plot.plot({
+                    title: `Timeline: ${timeField}`,
+                    y: { grid: true },
+                    marks: [
+                        Plot.lineY(processedData, { x: timeField, y: () => 1 })
+                    ]
+                });
+                
+                addVisualization(chart, `Timeline - ${timeField}`);
+            } catch (error) {
+                console.error('Error creating timeline:', error);
+                showErrorMessage(`Failed to create timeline: ${error.message}`);
+            }
+        }
+
+        // Show summary statistics
+        function showSummary() {
+            if (!currentTable) return;
+            
+            const selectedFields = getSelectedFields();
+            if (selectedFields.length === 0) {
+                showErrorMessage('Please select at least one field for summary statistics.');
+                return;
+            }
+            
+            const summaryData = selectedFields.map(field => {
+                const column = currentTable.column(field);
+                const values = column.values();
+                const nonNullValues = values.filter((v) => v !== null && v !== undefined);
+                
+                let stats = {
+                    field,
+                    count: values.length,
+                    nullCount: values.length - nonNullValues.length,
+                    uniqueCount: new Set(nonNullValues).size
+                };
+                
+                // Numeric statistics
+                if (typeof nonNullValues[0] === 'number') {
+                    const sorted = nonNullValues.sort((a, b) => a - b);
+                    stats.min = sorted[0];
+                    stats.max = sorted[sorted.length - 1];
+                    stats.mean = nonNullValues.reduce((a, b) => a + b, 0) / nonNullValues.length;
+                    stats.median = sorted[Math.floor(sorted.length / 2)];
+                }
+                
+                return stats;
+            });
+            
+            const summaryHtml = `
+                <div class="chart-card">
+                    <h3>📊 Summary Statistics</h3>
+                    <table class="schema-table">
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th>Count</th>
+                                <th>Null Count</th>
+                                <th>Unique</th>
+                                <th>Min</th>
+                                <th>Max</th>
+                                <th>Mean</th>
+                                <th>Median</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${summaryData.map(stat => `
+                                <tr>
+                                    <td><strong>${stat.field}</strong></td>
+                                    <td>${stat.count.toLocaleString()}</td>
+                                    <td>${stat.nullCount.toLocaleString()}</td>
+                                    <td>${stat.uniqueCount.toLocaleString()}</td>
+                                    <td>${stat.min !== undefined ? stat.min.toFixed(2) : '-'}</td>
+                                    <td>${stat.max !== undefined ? stat.max.toFixed(2) : '-'}</td>
+                                    <td>${stat.mean !== undefined ? stat.mean.toFixed(2) : '-'}</td>
+                                    <td>${stat.median !== undefined ? stat.median.toFixed(2) : '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            addVisualization(summaryHtml, 'Summary Statistics');
+        }
+
+        // Add visualization to the container
+        function addVisualization(content, title) {
+            const vizCard = document.createElement('div');
+            vizCard.className = 'chart-card';
+            
+            if (content instanceof HTMLElement) {
+                vizCard.appendChild(content);
+            } else {
+                vizCard.innerHTML = content;
+            }
+            
+            // Add close button
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'close';
+            closeBtn.innerHTML = '×';
+            closeBtn.onclick = () => vizCard.remove();
+            vizCard.insertBefore(closeBtn, vizCard.firstChild);
+            
+            visualizations.appendChild(vizCard);
+        }
+
+        // Show/hide loading indicator
+        function showLoading(show) {
+            if (show) {
+                loadingIndicator.classList.remove('hidden');
+            } else {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        // Show error message
+        function showErrorMessage(message) {
+            alert(message);
+        }
+
+        // Make functions available globally
+        window.analyzeField = function (fieldName) {
+            if (!currentTable) return;
+            
+            const column = currentTable.column(fieldName);
+            const values = column.values();
+            const nonNullValues = values.filter((v) => v !== null && v !== undefined);
+            
+            console.log(`📊 Analysis for field: ${fieldName}`);
+            console.log(`Total values: ${values.length}`);
+            console.log(`Non-null values: ${nonNullValues.length}`);
+            console.log(`Unique values: ${new Set(nonNullValues).size}`);
+            
+            if (typeof nonNullValues[0] === 'number') {
+                const sorted = nonNullValues.sort((a, b) => a - b);
+                console.log(`Min: ${sorted[0]}`);
+                console.log(`Max: ${sorted[sorted.length - 1]}`);
+                console.log(`Mean: ${nonNullValues.reduce((a, b) => a + b, 0) / nonNullValues.length}`);
+                console.log(`Median: ${sorted[Math.floor(sorted.length / 2)]}`);
+            }
+            
+            // Show first few values
+            console.log('Sample values:', nonNullValues.slice(0, 10));
+            alert(`Field analysis for ${fieldName} logged to console (F12)`);
+        };
+
+        window.reloadData = function () {
+            loadDataFromFolder();
+        };
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html> 
