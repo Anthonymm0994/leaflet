@@ -1258,15 +1258,20 @@ class ArrowDataExplorer:
             if PANEL_AVAILABLE:
                 pn.extension('plotly', sizing_mode='stretch_width')
                 
-                # Serve the application
+                # Serve the application with Windows-specific settings
                 pn.serve(
                     self.layout,
                     port=port,
                     show=True,
                     title="Arrow Data Explorer - Professional Edition",
                     favicon="📊",
-                    address="localhost",
-                    allow_websocket_origin=["localhost", "127.0.0.1"]
+                    address="0.0.0.0",  # Allow all local connections
+                    allow_websocket_origin=["localhost", "127.0.0.1", "0.0.0.0"],
+                    show_error_details=True,
+                    websocket_origin=["localhost", "127.0.0.1", "0.0.0.0"],
+                    # Windows-specific settings
+                    threaded=True,
+                    dev=False
                 )
             else:
                 print("❌ Panel not available. Install with: pip install panel")
