@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Extensibility | Arquero API Reference | arquero</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="Extensibility | Arquero API Reference" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Query processing and transformation of array-backed data tables." />
+<meta property="og:description" content="Query processing and transformation of array-backed data tables." />
+<link rel="canonical" href="extensibility.html" />
+<meta property="og:url" content="https://idl.uw.edu/arquero/api/extensibility.html" />
+<meta property="og:site_name" content="arquero" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Extensibility | Arquero API Reference" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"Query processing and transformation of array-backed data tables.","headline":"Extensibility | Arquero API Reference","url":"https://idl.uw.edu/arquero/api/extensibility.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="../assets/css/style.css@v=e8003b487ac362f5679ed130cb3a6597b684f903.css">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/arquero/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://idl.uw.edu/arquero/">arquero</a></h1>
+      
+
+      <h1 id="arquero-api-reference-">Arquero API Reference <a href="https://idl.uw.edu/arquero"><img align="right" src="../assets/logo.svg" height="38" /></a></h1>
+
+<table>
+  <tbody>
+    <tr>
+      <td><a href="https://idl.uw.edu/arquero/api">Top-Level</a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/table">Table</a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/verbs">Verbs</a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/op">Op Functions</a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/expressions">Expressions</a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/extensibility"><strong>Extensibility</strong></a></td>
+    </tr>
+  </tbody>
+</table>
+
+<ul>
+  <li><a href="extensibility.html#op-functions">Op Functions</a>
+    <ul>
+      <li><a href="extensibility.html#addFunction">addFunction</a></li>
+      <li><a href="extensibility.html#addAggregateFunction">addAggregateFunction</a></li>
+      <li><a href="extensibility.html#addWindowFunction">addWindowFunction</a></li>
+    </ul>
+  </li>
+  <li><a href="extensibility.html#table-methods">Table Methods</a></li>
+</ul>
+
+<p><br /></p>
+
+<h2 id="op-functions"><a id="op-functions">Op Functions</a></h2>
+
+<p>Add new functions for use in table expressions.</p>
+
+<hr />
+<p><a id="addFunction" href="extensibility.html#addFunction">#</a>
+<em>aq</em>.<b>addFunction</b>([<i>name</i>,] <i>fn</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/op/register.js">Source</a></p>
+
+<p>Register a function for use within table expressions. If only a single argument is provided, it will be assumed to be a function and the system will try to extract its name. Throws an error if a function with the same name is already registered and the override option is not specified, or if no name is provided and the input function is anonymous. After registration, the function will be accessible via the <a href="extensibility.html#op"><code class="language-plaintext highlighter-rouge">op</code></a> object.</p>
+
+<p>Also see the <a href="https://idl.uw.edu/arquero/api/#escape"><code class="language-plaintext highlighter-rouge">escape()</code> expression helper</a> for a lightweight alternative that allows access to functions defined in an enclosing scope.</p>
+
+<ul>
+  <li><em>name</em>: The name to use for the function.</li>
+  <li><em>fn</em>: A standard JavaScript function.</li>
+  <li><em>options</em>: Function registration options.
+    <ul>
+      <li><em>override</em>: Boolean flag (default <code class="language-plaintext highlighter-rouge">false</code>) indicating if the added function is allowed to override an existing function with the same name.</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// add a function named square, which is then available as op.square()</span>
+<span class="c1">// if a 'square' function already exists, this results in an error</span>
+<span class="nx">aq</span><span class="p">.</span><span class="nx">addFunction</span><span class="p">(</span><span class="dl">'</span><span class="s1">square</span><span class="dl">'</span><span class="p">,</span> <span class="nx">x</span> <span class="o">=&gt;</span> <span class="nx">x</span> <span class="o">*</span> <span class="nx">x</span><span class="p">);</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// add a function named square, override any previous 'square' definition</span>
+<span class="nx">aq</span><span class="p">.</span><span class="nx">addFunction</span><span class="p">(</span><span class="dl">'</span><span class="s1">square</span><span class="dl">'</span><span class="p">,</span> <span class="nx">x</span> <span class="o">=&gt;</span> <span class="nx">x</span> <span class="o">*</span> <span class="nx">x</span><span class="p">,</span> <span class="p">{</span> <span class="na">override</span><span class="p">:</span> <span class="kc">true</span> <span class="p">});</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// add a function using its existing name</span>
+<span class="nx">aq</span><span class="p">.</span><span class="nx">addFunction</span><span class="p">(</span><span class="kd">function</span> <span class="nx">square</span><span class="p">(</span><span class="nx">x</span><span class="p">)</span> <span class="p">{</span> <span class="k">return</span> <span class="nx">x</span> <span class="o">*</span> <span class="nx">x</span><span class="p">;</span> <span class="p">});</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="addAggregateFunction" href="extensibility.html#addAggregateFunction">#</a>
+<em>aq</em>.<b>addAggregateFunction</b>(<i>name</i>, <i>def</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/op/register.js">Source</a></p>
+
+<p>Register a custom aggregate function. Throws an error if a function with the same name is already registered and the override option is not specified. After registration, the operator will be accessible via the <a href="extensibility.html#op"><code class="language-plaintext highlighter-rouge">op</code></a> object.</p>
+
+<p>In addition to column values, internally aggregate functions are passed a <code class="language-plaintext highlighter-rouge">state</code> object that tracks intermediate values throughout the aggregation. Each <a href="https://idl.uw.edu/arquero/api/verbs/#groupby">groupby</a> group receives a different state object. The state object always has a <code class="language-plaintext highlighter-rouge">count</code> property (total number of values, including invalid values) and a <code class="language-plaintext highlighter-rouge">valid</code> property (number of values that are not <code class="language-plaintext highlighter-rouge">null</code>, <code class="language-plaintext highlighter-rouge">undefined</code>, or <code class="language-plaintext highlighter-rouge">NaN</code>). Each aggregate operator may write intermediate values to the <code class="language-plaintext highlighter-rouge">state</code> object. Follow the property naming convention of using the aggregate function name as a property name prefix to avoid namespace collisions! For example, the <code class="language-plaintext highlighter-rouge">mean</code> aggregate function writes to the properties <code class="language-plaintext highlighter-rouge">state.mean</code> and <code class="language-plaintext highlighter-rouge">state.mean_d</code>.</p>
+
+<p>The <code class="language-plaintext highlighter-rouge">rem</code> function of an aggregate definition is used to support rolling window calculations. It is safe to define <code class="language-plaintext highlighter-rouge">rem</code> as a no-op (<code class="language-plaintext highlighter-rouge">() =&gt; {}</code>) if the aggregate is never used in the context of a rolling window frame.</p>
+
+<ul>
+  <li><em>name</em>: The name to use for the aggregate function.</li>
+  <li><em>def</em>: An aggregate operator definition object:
+    <ul>
+      <li><em>create</em>: A creation function that takes non-field parameter values as input and returns a new aggregate operator instance. An aggregate operator instance should have four methods: <em>init(state)</em> to initialize any operator state, <em>add(state, value)</em> to add a value to the aggregate, <em>rem(state, value)</em> to remove a value from the aggregate, and <em>value(state)</em> to retrieve the current operator output value. The <em>state</em> parameter is a normal object for tracking all state information for a shared set of input field values.</li>
+      <li><em>param</em>: Two-element array containing the counts of input fields and additional parameters, respectively.</li>
+      <li><em>req</em>: Names of aggregate operators required by this one.</li>
+      <li><em>stream</em>: Names of operators required by this one for streaming operations (value removes), used during windowed aggregations.</li>
+    </ul>
+  </li>
+  <li><em>options</em>: Function registration options.
+    <ul>
+      <li><em>override</em>: Boolean flag (default <code class="language-plaintext highlighter-rouge">false</code>) indicating if the added function is allowed to override an existing function with the same name.</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// add an aggregate function that computes a sum of squares</span>
+<span class="c1">// the "rem" method is only needed for windowed aggregates</span>
+<span class="nx">aq</span><span class="p">.</span><span class="nx">addAggregateFunction</span><span class="p">(</span><span class="dl">'</span><span class="s1">sumsq</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+  <span class="na">create</span><span class="p">:</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">({</span>
+    <span class="na">init</span><span class="p">:</span>  <span class="nx">state</span> <span class="o">=&gt;</span> <span class="nx">state</span><span class="p">.</span><span class="nx">sumsq</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="na">add</span><span class="p">:</span>  <span class="p">(</span><span class="nx">state</span><span class="p">,</span> <span class="nx">value</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">state</span><span class="p">.</span><span class="nx">sumsq</span> <span class="o">+=</span> <span class="nx">value</span> <span class="o">*</span> <span class="nx">value</span><span class="p">,</span>
+    <span class="na">rem</span><span class="p">:</span>  <span class="p">(</span><span class="nx">state</span><span class="p">,</span> <span class="nx">value</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">state</span><span class="p">.</span><span class="nx">sumsq</span> <span class="o">-=</span> <span class="nx">value</span> <span class="o">*</span> <span class="nx">value</span><span class="p">,</span>
+    <span class="na">value</span><span class="p">:</span> <span class="nx">state</span> <span class="o">=&gt;</span> <span class="nx">state</span><span class="p">.</span><span class="nx">sumsq</span>
+  <span class="p">}),</span>
+  <span class="na">param</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="c1">// 1 field input, 0 extra parameters</span>
+<span class="p">});</span>
+
+<span class="nx">aq</span><span class="p">.</span><span class="nx">table</span><span class="p">({</span> <span class="na">x</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="p">})</span>
+  <span class="p">.</span><span class="nx">rollup</span><span class="p">({</span> <span class="na">ssq</span><span class="p">:</span> <span class="nx">op</span><span class="p">.</span><span class="nx">sumsq</span><span class="p">(</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">)</span> <span class="p">}</span> <span class="c1">// { ssq: [14] }</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="addWindowFunction" href="extensibility.html#addWindowFunction">#</a>
+<em>aq</em>.<b>addWindowFunction</b>(<i>name</i>, <i>def</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/op/register.js">Source</a></p>
+
+<p>Register a custom window function. Throws an error if a function with the same name is already registered and the override option is not specified. After registration, the operator will be accessible via the <a href="extensibility.html#op"><code class="language-plaintext highlighter-rouge">op</code></a> object.</p>
+
+<ul>
+  <li><em>name</em>: The name to use for the window function.</li>
+  <li><em>def</em>: A window operator definition object:
+    <ul>
+      <li><em>create</em>: A creation function that takes non-field parameter values as input and returns a new window operator instance. A window operator instance should have two methods: <em>init(state)</em> to initialize any operator state, and <em>value(state, field)</em> to retrieve the current operator output value. The <em>state</em> parameter is a <a href="https://github.com/uwdata/arquero/blob/master/src/engine/window/window-state.js">window state</a> instance that provides access to underlying values and the sliding window frame.</li>
+      <li><em>param</em>: Two-element array containing the counts of input fields and additional parameters, respectively.</li>
+    </ul>
+  </li>
+  <li><em>options</em>: Function registration options.
+    <ul>
+      <li><em>override</em>: Boolean flag (default <code class="language-plaintext highlighter-rouge">false</code>) indicating if the added function is allowed to override an existing function with the same name.</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// add a window function that outputs the minimum of a field value</span>
+<span class="c1">// and the current sorted window index, plus an optional offset</span>
+<span class="nx">aq</span><span class="p">.</span><span class="nx">addWindowFunction</span><span class="p">(</span><span class="dl">'</span><span class="s1">idxmin</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+  <span class="na">create</span><span class="p">:</span> <span class="p">(</span><span class="nx">offset</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">({</span>
+    <span class="na">init</span><span class="p">:</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{},</span> <span class="c1">// do nothing</span>
+    <span class="na">value</span><span class="p">:</span> <span class="p">(</span><span class="nx">w</span><span class="p">,</span> <span class="nx">f</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nb">Math</span><span class="p">.</span><span class="nx">min</span><span class="p">(</span><span class="nx">w</span><span class="p">.</span><span class="nx">value</span><span class="p">(</span><span class="nx">w</span><span class="p">.</span><span class="nx">index</span><span class="p">,</span> <span class="nx">f</span><span class="p">),</span> <span class="nx">w</span><span class="p">.</span><span class="nx">index</span><span class="p">)</span> <span class="o">+</span> <span class="nx">offset</span>
+  <span class="p">}),</span>
+  <span class="na">param</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="c1">// 1 field input, 1 extra parameter</span>
+<span class="p">});</span>
+
+<span class="nx">aq</span><span class="p">.</span><span class="nx">table</span><span class="p">({</span> <span class="na">x</span><span class="p">:</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="p">})</span>
+  <span class="p">.</span><span class="nx">derive</span><span class="p">({</span> <span class="na">x</span><span class="p">:</span> <span class="nx">op</span><span class="p">.</span><span class="nx">idxmin</span><span class="p">(</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="p">})</span> <span class="c1">// { x: [1, 2, 3, 2] }</span>
+</code></pre></div></div>
+
+<p><br /></p>
+
+<h2 id="table-methods"><a id="table-methods">Table Methods</a></h2>
+
+<p>To add new table-level methods, including transformation verbs, simply assign new methods to the <code class="language-plaintext highlighter-rouge">ColumnTable</code> class prototype.</p>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="p">{</span> <span class="nx">ColumnTable</span><span class="p">,</span> <span class="nx">op</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">arquero</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="c1">// add a sum verb, which returns a new table containing summed</span>
+<span class="c1">// values (potentially grouped) for a given column name</span>
+<span class="nb">Object</span><span class="p">.</span><span class="nx">assign</span><span class="p">(</span>
+  <span class="nx">ColumnTable</span><span class="p">.</span><span class="nx">prototype</span><span class="p">,</span>
+  <span class="p">{</span>
+    <span class="nx">sum</span><span class="p">(</span><span class="nx">column</span><span class="p">,</span> <span class="p">{</span> <span class="k">as</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">sum</span><span class="dl">'</span> <span class="p">}</span> <span class="o">=</span> <span class="p">{})</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nx">rollup</span><span class="p">({</span> <span class="p">[</span><span class="k">as</span><span class="p">]:</span> <span class="nx">op</span><span class="p">.</span><span class="nx">sum</span><span class="p">(</span><span class="nx">column</span><span class="p">)</span> <span class="p">});</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">);</span>
+</code></pre></div></div>
+
+
+      
+      <div class="footer border-top border-gray-light mt-5 pt-3 text-right text-gray">
+        This site is open source. <a href="https://github.com/uwdata/arquero/edit/main/docs/api/extensibility.md">Improve this page</a>.
+      </div>
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>

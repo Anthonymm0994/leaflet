@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Offline Data Explorer - Test</title>
+</head>
+<body>
+    <h1>Testing Offline Data Explorer</h1>
+    <div id="status">Initializing...</div>
+    <pre id="log" style="background: #f0f0f0; padding: 10px; height: 400px; overflow: auto;"></pre>
+    
+    <script>
+        // Simple logging function
+        const log = (msg) => {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            logEl.textContent += `[${timestamp}] ${msg}\n`;
+            console.log(msg);
+        };
+        
+        const updateStatus = (msg) => {
+            document.getElementById('status').textContent = msg;
+            log(`Status: ${msg}`);
+        };
+        
+        // Test basic functionality
+        log('Test HTML loaded successfully');
+        updateStatus('Testing basic JavaScript...');
+        
+        // Test if we can create blob URLs
+        try {
+            const testBlob = new Blob(['console.log("blob test")'], {type: 'text/javascript'});
+            const testUrl = URL.createObjectURL(testBlob);
+            log(`Blob URL created: ${testUrl}`);
+            URL.revokeObjectURL(testUrl);
+            updateStatus('Blob URLs work!');
+        } catch (e) {
+            log(`Error with blob URLs: ${e.message}`);
+            updateStatus('Error: Blob URLs failed');
+        }
+        
+        // Test Web Workers
+        try {
+            const workerCode = 'self.postMessage("Worker is running");';
+            const workerBlob = new Blob([workerCode], {type: 'application/javascript'});
+            const workerUrl = URL.createObjectURL(workerBlob);
+            const worker = new Worker(workerUrl);
+            
+            worker.onmessage = (e) => {
+                log(`Worker message: ${e.data}`);
+                updateStatus('Web Workers work!');
+                worker.terminate();
+                URL.revokeObjectURL(workerUrl);
+            };
+            
+            worker.onerror = (e) => {
+                log(`Worker error: ${e.message}`);
+                updateStatus('Error: Web Workers failed');
+            };
+        } catch (e) {
+            log(`Error creating worker: ${e.message}`);
+            updateStatus('Error: Web Workers not supported');
+        }
+    </script>
+</body>
+</html>

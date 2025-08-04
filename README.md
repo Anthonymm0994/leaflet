@@ -1,159 +1,105 @@
-# 🌿 Leaflet Arrow Explorer
+# Offline Data Visualization Dashboard
 
-A professional, fast, and powerful desktop application for exploring and visualizing Apache Arrow data files.
+## Overview
 
-## ✨ Features
+This project evolved through 36 iterations to create a fully offline, self-contained HTML data visualization dashboard that works via the `file://` protocol with no external dependencies. The dashboard visualizes large datasets (100k+ points) using Apache Arrow data format with interactive brushing and linking capabilities.
 
-- **📊 Professional Dark UI**: Modern, clean interface with dark theme
-- **🚀 Fast Arrow Processing**: Native Apache Arrow support for lightning-fast data loading
-- **📈 Rich Visualizations**: Interactive charts using Plotly.js (histograms, scatter plots, line charts, bar charts, box plots)
-- **📋 Data Exploration**: Schema inspection, data preview, and summary statistics
-- **💾 Export Capabilities**: Export data previews to CSV
-- **🔄 Real-time Updates**: Refresh data and switch between files seamlessly
+## Final Solution
 
-## 🛠️ Technology Stack
+The best working solution is in **`builds/Iter 36 - final with stats/`**:
+- `dashboard-with-stats.html` - Final dashboard with summary statistics
+- `build_dashboard.py` - Reusable script to create dashboards from any Arrow file
 
-- **Electron**: Cross-platform desktop application framework
-- **TypeScript**: Type-safe development with strict configuration
-- **Apache Arrow**: High-performance columnar data format
-- **Plotly.js**: Interactive scientific charts and visualizations
-- **Modern CSS**: Custom dark theme with CSS variables
+### Key Features
+- **Fully Offline**: All JavaScript libraries embedded directly in HTML
+- **Interactive Brushing**: Select ranges on histograms with AND logic (intersect mode)
+- **Linked Visualizations**: Selections update across all charts
+- **Summary Statistics**: Real-time stats panel showing min, max, mean, median, std dev
+- **Dynamic Axes**: Choose X/Y columns for scatter plot
+- **Export Functionality**: Export selected or all data as CSV
+- **Performance Optimized**: Handles 100k+ data points efficiently
 
-## 📁 Project Structure
+## What We Learned
+
+### 1. Module Loading Challenges
+- **DuckDB-WASM**: Initially attempted but incompatible with `file://` protocol due to Web Worker and WASM loading restrictions
+- **Solution**: Switched to simpler libraries that work with direct script tags
+
+### 2. Data Format Evolution
+- Started with direct Arrow.js usage (complex module loading issues)
+- Moved to preprocessing Arrow data into TypedArrays with base64 encoding
+- Final: Embedded preprocessed data for reliable offline usage
+
+### 3. Visualization Libraries Journey
+- **Observable Plot**: Good for basic charts but limited brushing capabilities
+- **D3.js**: Too low-level for rapid development
+- **Vega-Lite**: Winner - native brushing support and declarative syntax
+
+### 4. Brushing Implementation
+- Key insight: Brush parameter must be defined inside the first layer of repeat specification
+- `resolve: "intersect"` enables AND logic between multiple selections
+- Debounced updates possible but not always necessary
+
+### 5. Performance Optimizations
+- TypedArrays for efficient memory usage
+- Sampling for scatter plots (adjustable 1k-20k points)
+- Canvas renderer option for many points
+- Pre-computed statistics where possible
+
+## Technical Stack (Final)
+
+- **Data**: Apache Arrow → TypedArrays (Float32Array, Uint32Array)
+- **Visualization**: Vega-Lite 5 with Vega-Embed
+- **Interactivity**: Native Vega-Lite brushing with intersect mode
+- **Styling**: Dark theme with custom CSS
+- **Export**: Client-side CSV generation
+
+## Usage
+
+### Using Existing Dashboard
+Simply open `builds/Iter 36 - final with stats/dashboard-with-stats.html` in a web browser.
+
+### Creating Custom Dashboard
+```bash
+cd builds/Iter 36 - final with stats
+python build_dashboard.py path/to/data.arrow column1 column2 column3 --output my_dashboard.html
+```
+
+## Project Structure
 
 ```
 leaflet/
-├── src/
-│   ├── main/           # Electron main process
-│   │   └── main.ts     # Main process logic
-│   ├── renderer/       # Electron renderer process
-│   │   ├── index.html  # Main HTML interface
-│   │   ├── styles.css  # Dark theme styling
-│   │   └── renderer.ts # Frontend logic
-│   ├── types/          # TypeScript type definitions
-│   │   └── index.ts    # Shared types
-│   └── utils/          # Utility functions
-│       └── arrow.ts    # Arrow data processing
-├── data/               # Arrow files directory
-├── dist/               # Compiled JavaScript output
-├── docs/               # Documentation (preserved)
-├── start.bat           # Windows start script
-├── build.bat           # Windows build script
-├── dev.bat             # Windows development script
-└── package.json        # Project configuration
+├── data/                                 # Data files
+│   ├── test_large_complex.arrow         # Original Arrow data
+│   └── preprocessed_uncompressed.json   # Preprocessed TypedArray format
+├── builds/                              # All iterations
+│   ├── Iter 0-35/                      # Previous attempts and experiments
+│   └── Iter 36 - final with stats/     # Final working solution
+└── rough_idea.md                        # Original project concept
 ```
 
-## Quick Start
+## Key Iterations
 
-### Windows
-```bash
-# Start the application
-start.bat
+- **Iter 5**: First working Arquero-based solution
+- **Iter 21**: Added interactive features and tooltips
+- **Iter 25**: Implemented TypedArray preprocessing
+- **Iter 27**: Discovered correct Vega-Lite brush pattern
+- **Iter 32**: Validated linked brushing
+- **Iter 35**: Multiple working patterns tested
+- **Iter 36**: Final version with summary statistics
 
-# Build executable
-build.bat
-```
+## Lessons for Future Projects
 
-### Manual (Cross-platform)
-```bash
-# Install dependencies
-npm install
+1. **Start Simple**: Complex module systems (ES modules, CommonJS) don't work well with `file://`
+2. **Test Early**: Browser console is your friend for debugging
+3. **Use CDNs for Testing**: But always inline for final offline version
+4. **Vega-Lite is Powerful**: Handles most interactive visualization needs
+5. **Preprocess When Possible**: Reduces runtime computation
+6. **TypedArrays are Fast**: Much better than regular JavaScript arrays for large datasets
 
-# Start in development mode
-npm run dev
+## Credits
 
-# Build and start
-npm start
-
-# Build executable
-npm run dist
-```
-
-### Usage
-1. Place your `.arrow` files in the `data/` folder
-2. Launch the application using the start script
-3. Select a file from the sidebar to begin exploring
-4. Use the tabs to navigate between Overview, Visualizations, and Data Preview
-5. Create custom visualizations by selecting chart types and fields
-
-## 🏗️ Building Executables
-
-### Easy Build (Recommended)
-
-**Windows:**
-```bash
-# Double-click or run:
-build.bat
-```
-
-### Manual Build
-```bash
-# Create distributable packages
-npm run dist
-```
-
-The executables will be created in the `dist-build/` directory.
-
-## 🔧 Development
-
-### Development Mode
-**Windows:**
-```bash
-dev.bat
-```
-
-### Manual Development Commands
-```bash
-# Build TypeScript to JavaScript
-npm run build
-
-# Watch mode for development
-npm run watch
-
-# Start with DevTools
-npm run dev
-```
-
-### Code Quality
-- **TypeScript**: Strict type checking enabled
-- **ESLint**: Code quality and consistency
-- **Modular Architecture**: Clean separation of concerns
-
-## 📦 Dependencies
-
-### Core Dependencies
-- `apache-arrow`: Arrow data processing
-- `arquero`: Data manipulation (available for future use)
-
-### Development Dependencies
-- `electron`: Desktop application framework
-- `typescript`: Type-safe development
-- `electron-builder`: Application packaging
-
-### External Libraries (CDN)
-- `plotly.js`: Interactive visualizations
-- `chart.js`: Additional charting capabilities
-
-## 🎨 UI/UX Features
-
-- **Dark Theme**: Professional dark mode interface
-- **Responsive Design**: Adapts to different window sizes
-- **Intuitive Navigation**: Tab-based interface for different views
-- **Loading States**: Clear feedback during data operations
-- **Error Handling**: User-friendly error messages
-
-## 🔮 Future Enhancements
-
-- **Advanced Filtering**: Conditional data filtering
-- **Custom Queries**: SQL-like query interface
-- **More Chart Types**: Heatmaps, 3D plots, etc.
-- **Data Export**: Full dataset export capabilities
-- **Performance Optimization**: Lazy loading for large datasets
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
-
----
-
-**Built with ❤️ using TypeScript, Electron, and Apache Arrow** 
+Inspired by:
+- [Observable Brushing and Linking Example](https://observablehq.com/@weiglemc/brushing-and-linking-example-with-vega-lite)
+- [Mosaic](https://github.com/uwdata/mosaic) for coordinated views patterns
+- Apache Arrow for efficient columnar data format

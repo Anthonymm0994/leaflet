@@ -1,0 +1,343 @@
+{
+  "timestamp": "2025-08-02T08:38:44.090666",
+  "summary": {
+    "total_files": 14,
+    "valid_files": 0,
+    "files_with_errors": 14
+  },
+  "results": [
+    {
+      "file": "builds\\Iter 0 - original\\data-explorer-compressed.html",
+      "valid": false,
+      "errors": [
+        "Missing HTML tags",
+        "Uses require() without module setup",
+        "No Arrow data found"
+      ],
+      "warnings": [
+        "DuckDB may not be properly exposed",
+        "No DuckDB WASM found"
+      ],
+      "info": {
+        "dependencies": [
+          "Apache Arrow",
+          "DuckDB"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 0 - original\\data-explorer-optimized.html",
+      "valid": false,
+      "errors": [
+        "Missing HTML tags",
+        "Missing Body section",
+        "No Arrow data found"
+      ],
+      "warnings": [
+        "DuckDB may not be properly exposed",
+        "No DuckDB WASM found"
+      ],
+      "info": {
+        "dependencies": [
+          "Apache Arrow",
+          "DuckDB"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 0 - original\\data-explorer.html",
+      "valid": false,
+      "errors": [
+        "Missing HTML tags",
+        "Uses require() without module setup",
+        "No Arrow data found"
+      ],
+      "warnings": [
+        "DuckDB may not be properly exposed",
+        "No DuckDB WASM found"
+      ],
+      "info": {
+        "dependencies": [
+          "Apache Arrow",
+          "DuckDB"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 1 - embedded\\data-explorer-embedded-compressed.html",
+      "valid": false,
+      "errors": [
+        "Missing HTML tags",
+        "Uses require() without module setup",
+        "No Arrow data found"
+      ],
+      "warnings": [
+        "DuckDB may not be properly exposed",
+        "No DuckDB WASM found"
+      ],
+      "info": {
+        "dependencies": [
+          "Apache Arrow",
+          "DuckDB"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 1 - embedded\\data-explorer-embedded.html",
+      "valid": false,
+      "errors": [
+        "Missing HTML tags",
+        "Uses require() without module setup",
+        "No Arrow data found"
+      ],
+      "warnings": [
+        "DuckDB may not be properly exposed",
+        "No DuckDB WASM found"
+      ],
+      "info": {
+        "dependencies": [
+          "Apache Arrow",
+          "DuckDB"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 2 - offline\\data-explorer-offline-fixed-compressed.html",
+      "valid": false,
+      "errors": [
+        "Missing HTML tags",
+        "Missing Body section",
+        "Uses require() without module setup"
+      ],
+      "warnings": [
+        "Script 3: Uses require() without module setup",
+        "Script 4: Uses require() without module setup",
+        "Uses require() without defining it",
+        "DuckDB may not be properly exposed"
+      ],
+      "info": {
+        "arrow_size": 6.987127304077148,
+        "dependencies": [
+          "Apache Arrow",
+          "DuckDB"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 2 - offline\\data-explorer-offline-fixed.html",
+      "valid": false,
+      "errors": [
+        "Missing HTML tags",
+        "Missing Body section",
+        "Uses require() without module setup"
+      ],
+      "warnings": [
+        "Script 3: Uses require() without module setup",
+        "Script 4: Uses require() without module setup",
+        "Uses require() without defining it",
+        "DuckDB may not be properly exposed"
+      ],
+      "info": {
+        "arrow_size": 28.316099166870117,
+        "dependencies": [
+          "Apache Arrow",
+          "DuckDB"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 2 - offline\\data-explorer-offline-optimized-compressed.html",
+      "valid": false,
+      "errors": [
+        "Missing HTML tags",
+        "Missing Body section",
+        "Uses require() without module setup"
+      ],
+      "warnings": [
+        "Script 1: Uses require() without module setup",
+        "Uses require() without defining it",
+        "DuckDB may not be properly exposed"
+      ],
+      "info": {
+        "arrow_size": 6.987127304077148,
+        "dependencies": [
+          "Apache Arrow",
+          "DuckDB"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 2 - offline\\data-explorer-offline-optimized.html",
+      "valid": false,
+      "errors": [
+        "Missing HTML tags",
+        "Missing Body section",
+        "Uses require() without module setup"
+      ],
+      "warnings": [
+        "Script 1: Uses require() without module setup",
+        "Uses require() without defining it",
+        "DuckDB may not be properly exposed"
+      ],
+      "info": {
+        "arrow_size": 28.316099166870117,
+        "dependencies": [
+          "Apache Arrow",
+          "DuckDB"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 4 - clean attempt\\data-explorer-clean.html",
+      "valid": false,
+      "errors": [
+        "Uses require() without module setup"
+      ],
+      "warnings": [
+        "Script 1: Uses require() without module setup",
+        "Uses require() without defining it"
+      ],
+      "info": {
+        "arrow_size": 28.316099166870117,
+        "dependencies": [
+          "D3.js",
+          "Apache Arrow",
+          "Observable Plot",
+          "DuckDB",
+          "Plotly"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 5 - observable arquero\\data-explorer.html",
+      "valid": false,
+      "errors": [
+        "Uses require() without module setup"
+      ],
+      "warnings": [
+        "Script 1: Uses require() without module setup",
+        "Uses require() without defining it",
+        "No DuckDB WASM found"
+      ],
+      "info": {
+        "arrow_size": 28.316099166870117,
+        "dependencies": [
+          "D3.js",
+          "Apache Arrow",
+          "Observable Plot",
+          "Arquero"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 6 - parquet full data\\data-explorer.html",
+      "valid": false,
+      "errors": [
+        "Uses require() without module setup",
+        "No Arrow data found"
+      ],
+      "warnings": [
+        "Script 1: Uses require() without module setup",
+        "Uses require() without defining it",
+        "No DuckDB WASM found"
+      ],
+      "info": {
+        "dependencies": [
+          "D3.js",
+          "Apache Arrow",
+          "Observable Plot",
+          "Arquero"
+        ],
+        "visualizations": [
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 7 - coordinator pattern\\data-explorer.html",
+      "valid": false,
+      "errors": [
+        "Script tag mismatch: 2 open, 1 close",
+        "Uses require() without module setup"
+      ],
+      "warnings": [
+        "Script 1: Uses require() without module setup",
+        "Uses require() without defining it",
+        "DuckDB may not be properly exposed"
+      ],
+      "info": {
+        "arrow_size": 28.316099166870117,
+        "dependencies": [
+          "D3.js",
+          "Apache Arrow",
+          "Observable Plot",
+          "DuckDB",
+          "Alpine.js"
+        ],
+        "visualizations": [
+          "Time Histogram",
+          "Width Histogram",
+          "Category Bar",
+          "Scatter Plot"
+        ]
+      }
+    },
+    {
+      "file": "builds\\Iter 7 - coordinator pattern fixed\\data-explorer.html",
+      "valid": false,
+      "errors": [
+        "Script tag mismatch: 2 open, 1 close"
+      ],
+      "warnings": [],
+      "info": {
+        "arrow_size": 28.316099166870117,
+        "dependencies": [
+          "D3.js",
+          "Apache Arrow",
+          "Observable Plot",
+          "DuckDB",
+          "Alpine.js"
+        ],
+        "visualizations": [
+          "Time Histogram",
+          "Width Histogram",
+          "Category Bar",
+          "Scatter Plot"
+        ]
+      }
+    }
+  ]
+}
