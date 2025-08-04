@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Verbs | Arquero API Reference | arquero</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="Verbs | Arquero API Reference" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Query processing and transformation of array-backed data tables." />
+<meta property="og:description" content="Query processing and transformation of array-backed data tables." />
+<link rel="canonical" href="verbs.html" />
+<meta property="og:url" content="https://idl.uw.edu/arquero/api/verbs.html" />
+<meta property="og:site_name" content="arquero" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Verbs | Arquero API Reference" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"Query processing and transformation of array-backed data tables.","headline":"Verbs | Arquero API Reference","url":"https://idl.uw.edu/arquero/api/verbs.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="../assets/css/style.css@v=e8003b487ac362f5679ed130cb3a6597b684f903.css">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/arquero/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://idl.uw.edu/arquero/">arquero</a></h1>
+      
+
+      <h1 id="arquero-api-reference-">Arquero API Reference <a href="https://idl.uw.edu/arquero"><img align="right" src="../assets/logo.svg" height="38" /></a></h1>
+
+<table>
+  <tbody>
+    <tr>
+      <td><a href="https://idl.uw.edu/arquero/api">Top-Level</a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/table">Table</a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/verbs"><strong>Verbs</strong></a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/op">Op Functions</a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/expressions">Expressions</a></td>
+      <td><a href="https://idl.uw.edu/arquero/api/extensibility">Extensibility</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<ul>
+  <li><a href="verbs.html#core-verbs">Core Verbs</a>
+    <ul>
+      <li><a href="verbs.html#assign">assign</a></li>
+      <li><a href="verbs.html#derive">derive</a></li>
+      <li><a href="verbs.html#filter">filter</a>, <a href="verbs.html#slice">slice</a></li>
+      <li><a href="verbs.html#groupby">groupby</a>, <a href="verbs.html#ungroup">ungroup</a></li>
+      <li><a href="verbs.html#orderby">orderby</a>, <a href="verbs.html#unorder">unorder</a></li>
+      <li><a href="verbs.html#rollup">rollup</a>, <a href="verbs.html#count">count</a></li>
+      <li><a href="verbs.html#sample">sample</a></li>
+      <li><a href="verbs.html#select">select</a>, <a href="verbs.html#relocate">relocate</a>, <a href="verbs.html#rename">rename</a></li>
+      <li><a href="verbs.html#reify">reify</a></li>
+    </ul>
+  </li>
+  <li><a href="verbs.html#joins">Join Verbs</a>
+    <ul>
+      <li><a href="verbs.html#cross">cross</a></li>
+      <li><a href="verbs.html#join">join</a>, <a href="verbs.html#join_left">join_left</a>, <a href="verbs.html#join_right">join_right</a>, <a href="verbs.html#join_full">join_full</a></li>
+      <li><a href="verbs.html#lookup">lookup</a></li>
+      <li><a href="verbs.html#semijoin">semijoin</a>, <a href="verbs.html#antijoin">antijoin</a></li>
+    </ul>
+  </li>
+  <li><a href="verbs.html#cleaning">Cleaning Verbs</a>
+    <ul>
+      <li><a href="verbs.html#dedupe">dedupe</a>, <a href="verbs.html#impute">impute</a></li>
+    </ul>
+  </li>
+  <li><a href="verbs.html#reshape">Reshape Verbs</a>
+    <ul>
+      <li><a href="verbs.html#fold">fold</a>, <a href="verbs.html#pivot">pivot</a></li>
+      <li><a href="verbs.html#spread">spread</a>, <a href="verbs.html#unroll">unroll</a></li>
+    </ul>
+  </li>
+  <li><a href="verbs.html#sets">Set Verbs</a>
+    <ul>
+      <li><a href="verbs.html#concat">concat</a>, <a href="verbs.html#union">union</a></li>
+      <li><a href="verbs.html#intersect">intersect</a>, <a href="verbs.html#except">except</a></li>
+    </ul>
+  </li>
+</ul>
+
+<p><br /></p>
+
+<h2 id="core-verbs"><a id="core">Core Verbs</a></h2>
+
+<hr />
+<p><a id="assign" href="verbs.html#assign">#</a>
+<em>table</em>.<b>assign</b>(<i>…tables</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/assign.js">Source</a></p>
+
+<p>Create a new table with additional columns drawn from one or more input <em>tables</em>. All tables must have the same numer of rows and will be <a href="verbs.html#reify">reified</a> prior to assignment. In the case of repeated column names, input table columns overwrite existing columns.</p>
+
+<ul>
+  <li><em>tables</em>: The input tables to merge.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">const</span> <span class="nx">t1</span> <span class="o">=</span> <span class="nx">aq</span><span class="p">.</span><span class="nx">table</span><span class="p">({</span> <span class="na">a</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="na">b</span><span class="p">:</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="p">});</span>
+<span class="kd">const</span> <span class="nx">t2</span> <span class="o">=</span> <span class="nx">aq</span><span class="p">.</span><span class="nx">table</span><span class="p">({</span> <span class="na">c</span><span class="p">:</span> <span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">],</span> <span class="na">b</span><span class="p">:</span> <span class="p">[</span><span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">]</span> <span class="p">});</span>
+<span class="nx">t1</span><span class="p">.</span><span class="nx">assign</span><span class="p">(</span><span class="nx">t2</span><span class="p">);</span> <span class="c1">// { a: [1, 2], b: [7, 8], c: [5, 6] }</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="derive" href="verbs.html#derive">#</a>
+<em>table</em>.<b>derive</b>(<i>values</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/derive.js">Source</a></p>
+
+<p>Derive new column values based on the provided expressions.</p>
+
+<ul>
+  <li><em>values</em>: Object of name-value pairs defining the columns to derive. The input object should have output column names for keys and table expressions for values.</li>
+  <li><em>options</em>: An options object for dropping or relocating derived columns. Use either the <em>before</em> or <em>after</em> property to indicate where to place derived columns. Specifying both before and after is an error. Unlike the <a href="verbs.html#relocate">relocate</a> verb, this option affects only new columns; overwritten columns with existing names are excluded from relocation.
+    <ul>
+      <li><em>drop</em>: A boolean (default <code class="language-plaintext highlighter-rouge">false</code>) indicating if the original columns should be dropped, leaving only the derived columns. If <code class="language-plaintext highlighter-rouge">true</code>, the <em>before</em> and <em>after</em> options are ignored.</li>
+      <li><em>before</em>: An anchor column that relocated columns should be placed before. The value can be any legal column selection. If multiple columns are selected, only the <em>first</em> column will be used as an anchor.</li>
+      <li><em>after</em>: An anchor column that relocated columns should be placed after. The value can be any legal column selection. If multiple columns are selected, only the <em>last</em> column will be used as an anchor.</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">derive</span><span class="p">({</span> <span class="na">sumXY</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">x</span> <span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">y</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">derive</span><span class="p">({</span> <span class="na">z</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">x</span> <span class="o">*</span> <span class="nx">d</span><span class="p">.</span><span class="nx">y</span> <span class="p">},</span> <span class="p">{</span> <span class="na">before</span><span class="p">:</span> <span class="dl">'</span><span class="s1">x</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="filter" href="verbs.html#filter">#</a>
+<em>table</em>.<b>filter</b>(<i>criteria</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/filter.js">Source</a></p>
+
+<p>Filter a table to a subset of rows based on the input criteria. The resulting table provides a filtered view over the original data; no data copy is made. To create a table that copies only filtered data to new data structures, call <a href="verbs.html#reify">reify</a> on the output table.</p>
+
+<ul>
+  <li><em>criteria</em>: The filter criteria as a table expression. Both aggregate and window functions are permitted, and will take into account any <a href="verbs.html#groupby">groupby</a> or <a href="verbs.html#orderby">orderby</a> settings.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">filter</span><span class="p">(</span><span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">abs</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">)</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="slice" href="verbs.html#slice">#</a>
+<em>table</em>.<b>slice</b>([<i>start</i>, <i>end</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/slice.js">Source</a></p>
+
+<p>Extract rows with indices from <em>start</em> to <em>end</em> (<em>end</em> not included), where <em>start</em> and <em>end</em> represent per-group ordered row numbers in the table. The table row indices are determined by the current <a href="verbs.html#orderby">orderby</a> settings. The <em>start</em> and <em>end</em> arguments are applied separately to each group, as determined by <a href="verbs.html#groupby">groupby</a>.</p>
+
+<ul>
+  <li><em>start</em>: Zero-based index at which to start extraction. A negative index indicates an offset from the end of the group. If start is undefined, slice starts from the index 0.</li>
+  <li><em>end</em>: Zero-based index before which to end extraction. A negative index indicates an offset from the end of the group. If end is omitted, slice extracts through the end of the group.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// slice the table to include all rows except for the first and last</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// extract (up to) the first two rows of each group</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">groupby</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">).</span><span class="nx">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="groupby" href="verbs.html#groupby">#</a>
+<em>table</em>.<b>groupby</b>(<i>…keys</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/groupby.js">Source</a></p>
+
+<p>Group table rows based on a set of column values. Subsequent operations that are sensitive to grouping (such as aggregate functions) will operate over the grouped rows. To undo grouping, use <a href="verbs.html#ungroup">ungroup</a>.</p>
+
+<ul>
+  <li><em>keys</em>: Key column values to group by. Keys may be column name strings, column index numbers, or value objects with output column names for keys and table expressions for values.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">groupby</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">colB</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">groupby</span><span class="p">({</span> <span class="na">key</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">colA</span> <span class="o">+</span> <span class="nx">d</span><span class="p">.</span><span class="nx">colB</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="ungroup" href="verbs.html#ungroup">#</a>
+<em>table</em>.<b>ungroup</b>() · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/ungroup.js">Source</a></p>
+
+<p>Ungroup a table, removing any grouping criteria. Undoes the effects of <a href="verbs.html#groupby">groupby</a>.</p>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">ungroup</span><span class="p">()</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="orderby" href="verbs.html#orderby">#</a>
+<em>table</em>.<b>orderby</b>(<i>…keys</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/orderby.js">Source</a></p>
+
+<p>Order table rows based on a set of column values. Subsequent operations sensitive to ordering (such as window functions) will operate over sorted values. The resulting table provides an view over the original data, without any copying. To create a table with sorted data copied to new data strucures, call <a href="verbs.html#reify">reify</a> on the result of this method. To undo ordering, use <a href="verbs.html#unorder">unorder</a>.</p>
+
+<ul>
+  <li><em>keys</em>: Key values to sort by, in precedence order. By default, sorting is done in ascending order. To sort in descending order, wrap values using <a href="https://idl.uw.edu/arquero/api/#desc">desc</a>. To provide a custom sort order for a key (such as for locale-specific string comparison), wrap the key value using <a href="https://idl.uw.edu/arquero/api/#collate">collate</a>. If a key is a string, order by the column with that name. If a number, order by the column with that index. If a function, the key must be a valid table expression; aggregate functions are permitted, but window functions are not. If an object, object values must be valid values parameters with output column names for keys and table expressions for values (the output names will be ignored). If an array, array values must be valid key parameters.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// order by column 'a' in ascending order, than 'b' in descending order</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">orderby</span><span class="p">(</span><span class="dl">'</span><span class="s1">a</span><span class="dl">'</span><span class="p">,</span> <span class="nx">aq</span><span class="p">.</span><span class="nx">desc</span><span class="p">(</span><span class="dl">'</span><span class="s1">b</span><span class="dl">'</span><span class="p">))</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// same as above, but with object syntax</span>
+<span class="c1">// key order is significant, but the key names are ignored</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">orderby</span><span class="p">({</span> <span class="na">a</span><span class="p">:</span> <span class="dl">'</span><span class="s1">a</span><span class="dl">'</span><span class="p">,</span> <span class="na">b</span><span class="p">:</span> <span class="nx">aq</span><span class="p">.</span><span class="nx">desc</span><span class="p">(</span><span class="dl">'</span><span class="s1">b</span><span class="dl">'</span><span class="p">)</span> <span class="p">)})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// order by column 'a' according to German locale settings</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">orderby</span><span class="p">(</span><span class="nx">aq</span><span class="p">.</span><span class="nx">collate</span><span class="p">(</span><span class="dl">'</span><span class="s1">a</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">de</span><span class="dl">'</span><span class="p">))</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// orderby accepts table expressions as well as column names</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">orderby</span><span class="p">(</span><span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">a</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// the configurations above can be combined</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">orderby</span><span class="p">(</span><span class="nx">aq</span><span class="p">.</span><span class="nx">desc</span><span class="p">(</span><span class="nx">aq</span><span class="p">.</span><span class="nx">collate</span><span class="p">(</span><span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">a</span><span class="p">,</span> <span class="dl">'</span><span class="s1">de</span><span class="dl">'</span><span class="p">)))</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="unorder" href="verbs.html#unorder">#</a>
+<em>table</em>.<b>unorder</b>() · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/unorder.js">Source</a></p>
+
+<p>Unorder a table, removing any sorting criteria. Undoes the effects of <a href="verbs.html#orderby">orderby</a>.</p>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">unorder</span><span class="p">()</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="rollup" href="verbs.html#rollup">#</a>
+<em>table</em>.<b>rollup</b>(<i>values</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/rollup.js">Source</a></p>
+
+<p>Rollup a table to produce an aggregate summary. Often used in conjunction with <a href="verbs.html#groupby">groupby</a>. To produce counts only, <a href="verbs.html#count">count</a> provides a convenient shortcut.</p>
+
+<ul>
+  <li><em>values</em>: Object of name-value pairs defining aggregated output columns. The input object should have output column names for keys and table expressions for values.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">groupby</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">).</span><span class="nx">rollup</span><span class="p">({</span> <span class="na">mean</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">mean</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">colB</span><span class="p">)</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">groupby</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">).</span><span class="nx">rollup</span><span class="p">({</span> <span class="na">mean</span><span class="p">:</span> <span class="nx">op</span><span class="p">.</span><span class="nx">median</span><span class="p">(</span><span class="dl">'</span><span class="s1">colB</span><span class="dl">'</span><span class="p">)</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="count" href="verbs.html#count">#</a>
+<em>table</em>.<b>count</b>([<i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/table/ColumnTable.js">Source</a></p>
+
+<p>Count the number of values in a group. This method is a shorthand for <a href="verbs.html#rollup">rollup</a> with a <a href="https://idl.uw.edu/arquero/api/op#count">count</a> aggregate function.</p>
+
+<ul>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>as</em>: The name of the output count column (default <code class="language-plaintext highlighter-rouge">'count'</code>).</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">groupby</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">).</span><span class="nx">count</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">groupby</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">).</span><span class="nx">count</span><span class="p">({</span> <span class="na">as</span><span class="p">:</span> <span class="dl">'</span><span class="s1">num</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="sample" href="verbs.html#sample">#</a>
+<em>table</em>.<b>sample</b>(<i>size</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/sample.js">Source</a></p>
+
+<p>Generate a table from a random sample of rows. If the table is grouped, perform <a href="https://en.wikipedia.org/wiki/Stratified_sampling">stratified sampling</a> by sampling separately from each group.</p>
+
+<ul>
+  <li><em>size</em>: The number of samples to draw per group. If number-valued, the same sample size is used for each group. If function-valued, the input should be an aggregate table expression compatible with <a href="verbs.html#rollup">rollup</a>.</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>replace</em>: Boolean flag (default <code class="language-plaintext highlighter-rouge">false</code>) to sample with replacement.</li>
+      <li><em>shuffle</em>: Boolean flag (default <code class="language-plaintext highlighter-rouge">true</code>) to ensure randomly ordered rows.</li>
+      <li><em>weight</em>: Column values to use as weights for sampling. Rows will be sampled with probability proportional to their relative weight. The input should be a column name string or a table expression compatible with <a href="verbs.html#derive">derive</a>.</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// sample 50 rows without replacement</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">sample</span><span class="p">(</span><span class="mi">50</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// sample 100 rows with replacement</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">sample</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="p">{</span> <span class="na">replace</span><span class="p">:</span> <span class="kc">true</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// stratified sampling with dynamic sample size</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">groupby</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">).</span><span class="nx">sample</span><span class="p">(</span><span class="nx">aq</span><span class="p">.</span><span class="nx">frac</span><span class="p">(</span><span class="mf">0.5</span><span class="p">))</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// sample twice the number of records in each group, with replacement</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">groupby</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">).</span><span class="nx">sample</span><span class="p">(</span><span class="nx">aq</span><span class="p">.</span><span class="nx">frac</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="p">{</span> <span class="na">replace</span><span class="p">:</span> <span class="kc">true</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="select" href="verbs.html#select">#</a>
+<em>table</em>.<b>select</b>(…columns) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/select.js">Source</a></p>
+
+<p>Select a subset of columns into a new table, potentially renaming them.</p>
+
+<ul>
+  <li><em>columns</em>: The columns to select. The input may consist of: column name strings, column integer indices, objects with current column names as keys and new column names as values (for renaming), or functions that take a table as input and return a valid selection parameter (typically the output of the selection helper functions <a href="https://idl.uw.edu/arquero/api/#all">all</a>, <a href="https://idl.uw.edu/arquero/api/#not">not</a>, or <a href="https://idl.uw.edu/arquero/api/#range">range</a>).</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">select</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">colB</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">select</span><span class="p">(</span><span class="nx">aq</span><span class="p">.</span><span class="nx">not</span><span class="p">(</span><span class="dl">'</span><span class="s1">colB</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">colC</span><span class="dl">'</span><span class="p">))</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">select</span><span class="p">({</span> <span class="na">colA</span><span class="p">:</span> <span class="dl">'</span><span class="s1">newA</span><span class="dl">'</span><span class="p">,</span> <span class="na">colB</span><span class="p">:</span> <span class="dl">'</span><span class="s1">newB</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="relocate" href="verbs.html#relocate">#</a>
+<em>table</em>.<b>relocate</b>(<i>columns</i>, <i>options</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/relocate.js">Source</a></p>
+
+<p>Relocate a subset of columns to change their positions, also potentially renaming them.</p>
+
+<ul>
+  <li><em>columns</em>: An ordered selection of columns to relocate. The input may consist of: column name strings, column integer indices, objects with current column names as keys and new column names as values (for renaming), or functions that take a table as input and return a valid selection parameter (typically the output of the selection helper functions <a href="https://idl.uw.edu/arquero/api/#all">all</a>, <a href="https://idl.uw.edu/arquero/api/#not">not</a>, or <a href="https://idl.uw.edu/arquero/api/#range">range</a>).</li>
+  <li><em>options</em>: An options object for specifying where columns should be relocated. The options must include either the <em>before</em> or <em>after</em> property to indicate where to place the selected columns. Specifying both <em>before</em> and <em>after</em> is an error.
+    <ul>
+      <li><em>before</em>: An anchor column that relocated columns should be placed before. The value can be any legal column selection. If multiple columns are selected, only the <em>first</em> column will be used as an anchor.</li>
+      <li><em>after</em>: An anchor column that relocated columns should be placed after. The value can be any legal column selection. If multiple columns are selected, only the <em>last</em> column will be used as an anchor.</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// place colY and colZ immediately after colX</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">relocate</span><span class="p">([</span><span class="dl">'</span><span class="s1">colY</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">colZ</span><span class="dl">'</span><span class="p">],</span> <span class="p">{</span> <span class="na">after</span><span class="p">:</span> <span class="dl">'</span><span class="s1">colX</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// place all columns but colB and colC immediately before</span>
+<span class="c1">// the position of colA prior to relocation</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">relocate</span><span class="p">(</span><span class="nx">not</span><span class="p">(</span><span class="dl">'</span><span class="s1">colB</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">colC</span><span class="dl">'</span><span class="p">),</span> <span class="p">{</span> <span class="na">before</span><span class="p">:</span> <span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// place colA and colB immediately after colC, while also</span>
+<span class="c1">// respectively renaming them as newA and newB</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">relocate</span><span class="p">({</span> <span class="na">colA</span><span class="p">:</span> <span class="dl">'</span><span class="s1">newA</span><span class="dl">'</span><span class="p">,</span> <span class="na">colB</span><span class="p">:</span> <span class="dl">'</span><span class="s1">newB</span><span class="dl">'</span> <span class="p">},</span> <span class="p">{</span> <span class="na">after</span><span class="p">:</span> <span class="dl">'</span><span class="s1">colC</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="rename" href="verbs.html#rename">#</a>
+<em>table</em>.<b>rename</b>(<i>columns</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/rename.js">Source</a></p>
+
+<p>Rename one or more columns, preserving column order. The <em>columns</em> input should be an object or Map instance that maps existing column names to new column names. Use the <a href="https://idl.uw.edu/arquero/api/#names"><code class="language-plaintext highlighter-rouge">names()</code> helper function</a> to create a rename map based on integer column indices.</p>
+
+<ul>
+  <li><em>columns</em>: A rename object or <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map">Map</a> with current column names as keys and new column names as values, or a selection helper function that takes a table as input and returns a rename map as output.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// rename colA to colA2</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">rename</span><span class="p">({</span> <span class="na">colA</span><span class="p">:</span> <span class="dl">'</span><span class="s1">colA2</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// rename 'old col' to 'new col'</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">rename</span><span class="p">({</span> <span class="dl">'</span><span class="s1">old col</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">new col</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// rename colA and colB</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">rename</span><span class="p">({</span> <span class="na">colA</span><span class="p">:</span> <span class="dl">'</span><span class="s1">colA2</span><span class="dl">'</span><span class="p">,</span> <span class="na">colB</span><span class="p">:</span> <span class="dl">'</span><span class="s1">colB2</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// rename colA and colB, alternate syntax</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">rename</span><span class="p">({</span> <span class="na">colA</span><span class="p">:</span> <span class="dl">'</span><span class="s1">colA2</span><span class="dl">'</span> <span class="p">},</span> <span class="p">{</span> <span class="na">colB</span><span class="p">:</span> <span class="dl">'</span><span class="s1">colB2</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// rename the first two columns (by index) to 'colA2' and 'colB2'</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">rename</span><span class="p">(</span><span class="nx">aq</span><span class="p">.</span><span class="nx">names</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA2</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">colB2</span><span class="dl">'</span><span class="p">))</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="reify" href="verbs.html#reify">#</a>
+<em>table</em>.<b>reify</b>([<i>indices</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/table/Table.js">Source</a></p>
+
+<p>Create a new fully-materialized instance of this table. All filter and orderby settings are removed from the new table. Instead, the data itself is filtered and ordered as needed to produce new backing data columns.</p>
+
+<ul>
+  <li><em>indices</em>: An array of ordered row indices to materialize. If unspecified, all rows passing the table filter are used.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// materialize any internal filtering and ordering</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">reify</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p><br /></p>
+
+<h2 id="join-verbs"><a id="joins">Join Verbs</a></h2>
+
+<hr />
+<p><a id="cross" href="verbs.html#cross">#</a>
+<em>table</em>.<b>cross</b>(<i>other</i>[, <i>values</i>, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/join.js">Source</a></p>
+
+<p>Produce the <a href="https://en.wikipedia.org/wiki/Join_%28SQL%29#Cross_join">Cartesian cross product</a> of two tables. The output table has one row for every pair of input table rows. Beware that outputs may be quite large, as the number of output rows is the product of the input row counts. This method is a convenient shorthand for a <a href="verbs.html#join">join</a> in which the join criteria is always true.</p>
+
+<ul>
+  <li><em>other</em>: The other (right) table to join with.</li>
+  <li><em>values</em>: The columns to include in the join output. If unspecified, all columns from both tables are included. If array-valued, a two element array should be provided, containing column selections to include from the left and right tables, respectively. Array input may consist of column name strings, objects with output names as keys and single-table table expressions as values, or the selection helper functions <a href="https://idl.uw.edu/arquero/api/#all">all</a>, <a href="https://idl.uw.edu/arquero/api/#not">not</a>, or <a href="https://idl.uw.edu/arquero/api/#range">range</a>. If object-valued, specifies the key-value pairs for each output, defined using two-table table expressions.</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>suffix</em>: Column name suffixes to append, for the left and right tables, respectively, when two columns with the same name are produced by the join (default <code class="language-plaintext highlighter-rouge">['_1', '_2']</code>).</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">cross</span><span class="p">(</span><span class="nx">other</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">cross</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">[[</span><span class="dl">'</span><span class="s1">leftKey</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">leftVal</span><span class="dl">'</span><span class="p">],</span> <span class="p">[</span><span class="dl">'</span><span class="s1">rightVal</span><span class="dl">'</span><span class="p">]])</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="join" href="verbs.html#join">#</a>
+<em>table</em>.<b>join</b>(<i>other</i>[, <i>on</i>, <i>values</i>, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/join.js">Source</a></p>
+
+<p>Join two tables, extending the columns of one table with values from the <em>other</em> table. The current table is considered the “left” table in the join, and the new table input is considered the “right” table in the join. By default an <a href="https://en.wikipedia.org/wiki/Join_%28SQL%29#Inner_join">inner join</a> is performed, removing all rows that do not match the join criteria. To perform left, right, or full outer joins, use the <a href="verbs.html#join_left}">join_left</a>, <a href="verbs.html#join_right">join_right</a>, or <a href="verbs.html#join_full">join_full</a> methods, or provide an <em>options</em> argument.</p>
+
+<ul>
+  <li><em>other</em>: The other (right) table to join with.</li>
+  <li><em>on</em>: The join criteria for matching table rows. If unspecified, the values of all columns with matching names are compared. If array-valued, a two-element array should be provided, containing the columns to compare for the left and right tables, respectively. If a one-element array or a string value is provided, the same column names will be drawn from both tables. If function-valued, should be a two-table table expression that returns a boolean value. When providing a custom predicate, note that join key values can be arrays or objects, and that normal join semantics do not consider null or undefined values to be equal (that is, <code class="language-plaintext highlighter-rouge">null !== null</code>). Use the <a href="https://idl.uw.edu/arquero/api/op#equal">op.equal</a> function to handle these cases.</li>
+  <li><em>values</em>: The columns to include in the join output. If unspecified, all columns from both tables are included; paired join keys sharing the same column name are included only once. If array-valued, a two element array should be provided, containing column selections to include from the left and right tables, respectively. Array input may consist of column name strings, objects with output names as keys and single-table table expressions as values, or the selection helper functions <a href="https://idl.uw.edu/arquero/api/#all">all</a>, <a href="https://idl.uw.edu/arquero/api/#not">not</a>, or <a href="https://idl.uw.edu/arquero/api/#range">range</a>. If object-valued, specifies the key-value pairs for each output, defined using two-table table expressions.</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>left</em>: Boolean flag (default <code class="language-plaintext highlighter-rouge">false</code>) indicating a <a href="https://en.wikipedia.org/wiki/Join_%28SQL%29#Left_outer_join">left outer join</a>. If both <em>left</em> and <em>right</em> are true, indicates a <a href="https://en.wikipedia.org/wiki/Join_%28SQL%29#Full_outer_join">full outer join</a>.</li>
+      <li><em>right</em> Boolean flag (default <code class="language-plaintext highlighter-rouge">false</code>) indicating a <a href="https://en.wikipedia.org/wiki/Join_%28SQL%29#Right_outer_join">right outer join</a>. If both the <em>left</em> and <em>right</em> are true, indicates a <a href="https://en.wikipedia.org/wiki/Join_%28SQL%29#Full_outer_join">full outer join</a>.</li>
+      <li><em>suffix</em>: Column name suffixes to append, for the left and right tables, respectively, when two columns with the same name are produced by the join (default <code class="language-plaintext highlighter-rouge">['_1', '_2']</code>).</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyShared</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">[</span><span class="dl">'</span><span class="s1">keyL</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyR</span><span class="dl">'</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">keyL</span><span class="p">,</span> <span class="nx">b</span><span class="p">.</span><span class="nx">keyR</span><span class="p">))</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="join_left" href="verbs.html#join_left">#</a>
+<em>table</em>.<b>join_left</b>(<i>other</i>[, <i>on</i>, <i>values</i>, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/table/ColumnTable.js">Source</a></p>
+
+<p>Perform a <a href="https://en.wikipedia.org/wiki/Join_%28SQL%29#Left_outer_join">left outer join</a> on two tables. Rows in the left table that do not match a row in the right table will be preserved. This method is a convenient shorthand with fixed options <code class="language-plaintext highlighter-rouge">{left: true, right: false}</code> passed to <a href="verbs.html#join">join</a>.</p>
+
+<ul>
+  <li><em>other</em>: The other (right) table to join with.</li>
+  <li><em>on</em>: The join criteria for matching table rows. If unspecified, the values of all columns with matching names are compared. If array-valued, a two-element array should be provided, containing the columns to compare for the left and right tables, respectively. If a one-element array or a string value is provided, the same column names will be drawn from both tables. If function-valued, should be a two-table table expression that returns a boolean value. When providing a custom predicate, note that join key values can be arrays or objects, and that normal join semantics do not consider null or undefined values to be equal (that is, <code class="language-plaintext highlighter-rouge">null !== null</code>). Use the <a href="https://idl.uw.edu/arquero/api/op#equal">op.equal</a> function to handle these cases.</li>
+  <li><em>values</em>: The columns to include in the join output. If unspecified, all columns from both tables are included; paired join keys sharing the same column name are included only once. If array-valued, a two element array should be provided, containing column selections to include from the left and right tables, respectively. Array input may consist of column name strings, objects with output names as keys and single-table table expressions as values, or the selection helper functions <a href="https://idl.uw.edu/arquero/api/#all">all</a>, <a href="https://idl.uw.edu/arquero/api/#not">not</a>, or <a href="https://idl.uw.edu/arquero/api/#range">range</a>. If object-valued, specifies the key-value pairs for each output, defined using two-table table expressions.</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>suffix</em>: Column name suffixes to append, for the left and right tables, respectively, when two columns with the same name are produced by the join (default <code class="language-plaintext highlighter-rouge">['_1', '_2']</code>).</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join_left</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyShared</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join_left</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">[</span><span class="dl">'</span><span class="s1">keyL</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyR</span><span class="dl">'</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join_left</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">keyL</span><span class="p">,</span> <span class="nx">b</span><span class="p">.</span><span class="nx">keyR</span><span class="p">))</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="join_right" href="verbs.html#join_right">#</a>
+<em>table</em>.<b>join_right</b>(<i>other</i>[, <i>on</i>, <i>values</i>, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/table/ColumnTable.js">Source</a></p>
+
+<p>Perform a <a href="https://en.wikipedia.org/wiki/Join_%28SQL%29#Right_outer_join">right outer join</a> on two tables. Rows in the right table that do not match a row in the left table will be preserved. This method is a convenient shorthand with fixed options <code class="language-plaintext highlighter-rouge">{left: false, right: true}</code> passed to <a href="verbs.html#join">join</a>.</p>
+
+<ul>
+  <li><em>other</em>: The other (right) table to join with.</li>
+  <li><em>on</em>: The join criteria for matching table rows. If unspecified, the values of all columns with matching names are compared. If array-valued, a two-element array should be provided, containing the columns to compare for the left and right tables, respectively. If a one-element array or a string value is provided, the same column names will be drawn from both tables. If function-valued, should be a two-table table expression that returns a boolean value. When providing a custom predicate, note that join key values can be arrays or objects, and that normal join semantics do not consider null or undefined values to be equal (that is, <code class="language-plaintext highlighter-rouge">null !== null</code>). Use the <a href="https://idl.uw.edu/arquero/api/op#equal">op.equal</a> function to handle these cases.</li>
+  <li><em>values</em>: The columns to include in the join output. If unspecified, all columns from both tables are included; paired join keys sharing the same column name are included only once. If array-valued, a two element array should be provided, containing column selections to include from the left and right tables, respectively. Array input may consist of column name strings, objects with output names as keys and single-table table expressions as values, or the selection helper functions <a href="https://idl.uw.edu/arquero/api/#all">all</a>, <a href="https://idl.uw.edu/arquero/api/#not">not</a>, or <a href="https://idl.uw.edu/arquero/api/#range">range</a>. If object-valued, specifies the key-value pairs for each output, defined using two-table table expressions.</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>suffix</em>: Column name suffixes to append, for the left and right tables, respectively, when two columns with the same name are produced by the join (default <code class="language-plaintext highlighter-rouge">['_1', '_2']</code>).</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join_right</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyShared</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join_right</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">[</span><span class="dl">'</span><span class="s1">keyL</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyR</span><span class="dl">'</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join_right</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">keyL</span><span class="p">,</span> <span class="nx">b</span><span class="p">.</span><span class="nx">keyR</span><span class="p">))</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="join_full" href="verbs.html#join_full">#</a>
+<em>table</em>.<b>join_full</b>(<i>other</i>[, <i>on</i>, <i>values</i>, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/table/ColumnTable.js">Source</a></p>
+
+<p>Perform a <a href="https://en.wikipedia.org/wiki/Join_%28SQL%29#Full_outer_join">full outer join</a> on two tables. Rows in either the left or right table that do not match a row in the other will be preserved. This method is a convenient shorthand with fixed options <code class="language-plaintext highlighter-rouge">{left: true, right: true}</code> passed to <a href="verbs.html#join">join</a>.</p>
+
+<ul>
+  <li><em>other</em>: The other (right) table to join with.</li>
+  <li><em>on</em>: The join criteria for matching table rows. If unspecified, the values of all columns with matching names are compared. If array-valued, a two-element array should be provided, containing the columns to compare for the left and right tables, respectively. If a one-element array or a string value is provided, the same column names will be drawn from both tables. If function-valued, should be a two-table table expression that returns a boolean value. When providing a custom predicate, note that join key values can be arrays or objects, and that normal join semantics do not consider null or undefined values to be equal (that is, <code class="language-plaintext highlighter-rouge">null !== null</code>). Use the <a href="https://idl.uw.edu/arquero/api/op#equal">op.equal</a> function to handle these cases.</li>
+  <li><em>values</em>: The columns to include in the join output. If unspecified, all columns from both tables are included; paired join keys sharing the same column name are included only once. If array-valued, a two element array should be provided, containing column selections to include from the left and right tables, respectively. Array input may consist of column name strings, objects with output names as keys and single-table table expressions as values, or the selection helper functions <a href="https://idl.uw.edu/arquero/api/#all">all</a>, <a href="https://idl.uw.edu/arquero/api/#not">not</a>, or <a href="https://idl.uw.edu/arquero/api/#range">range</a>. If object-valued, specifies the key-value pairs for each output, defined using two-table table expressions.</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>suffix</em>: Column name suffixes to append, for the left and right tables, respectively, when two columns with the same name are produced by the join (default <code class="language-plaintext highlighter-rouge">['_1', '_2']</code>).</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join_full</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyShared</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join_full</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">[</span><span class="dl">'</span><span class="s1">keyL</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyR</span><span class="dl">'</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">join_full</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">keyL</span><span class="p">,</span> <span class="nx">b</span><span class="p">.</span><span class="nx">keyR</span><span class="p">))</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="lookup" href="verbs.html#lookup">#</a>
+<em>table</em>.<b>lookup</b>(<i>other</i>[, <i>on</i>, <i>…values</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/lookup.js">Source</a></p>
+
+<p>Lookup values from a secondary table (<em>other</em>) and add them as new columns. A lookup occurs upon matching key values for rows in both tables. If the secondary table has multiple rows with the same key, only the last observed instance will be considered in the lookup. Lookup is similar to <a href="verbs.html#join_left">join_left</a>, but with a streamlined syntax and the added constraint of allowing at most one match only.</p>
+
+<ul>
+  <li><em>other</em>: The secondary table to look up values from.</li>
+  <li><em>on</em>: A lookup key or two-element array of lookup keys (column name strings or table expressions) for this table and the secondary table, respectively. If a single key value is provided, it is used as the lookup key for both tables. If unspecified, all columns with matching names are compared.</li>
+  <li><em>values</em>: The column values to add from the secondary table. Can be column name strings or objects with column names as keys and table expressions as values. If unspecified, includes all columns from the secondary table whose names do no match any column in the primary table.</li>
+</ul>
+
+<p><em>Example</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">lookup</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">[</span><span class="dl">'</span><span class="s1">key1</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">key2</span><span class="dl">'</span><span class="p">],</span> <span class="dl">'</span><span class="s1">value1</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">value2</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="semijoin" href="verbs.html#semijoin">#</a>
+<em>table</em>.<b>semijoin</b>(<i>other</i>[, <i>on</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/join-filter.js">Source</a></p>
+
+<p>Perform a <a href="https://en.wikipedia.org/wiki/Relational_algebra#Semijoin">semi-join</a>, filtering the left table to only rows that match a row in the right table.</p>
+
+<p>Similar to the <a href="verbs.html#filter">filter</a> verb, the resulting table provides a filtered view over the original data; no data copy is made. To create a table that copies only semi-joined data to new data structures, call <a href="verbs.html#reify">reify</a> on the output table.</p>
+
+<ul>
+  <li><em>other</em>: The other (right) table to join with.</li>
+  <li><em>on</em>: The join criteria for matching table rows. If unspecified, the values of all columns with matching names are compared. If array-valued, a two-element array should be provided, containing the columns to compare for the left and right tables, respectively. If a one-element array or a string value is provided, the same column names will be drawn from both tables. If function-valued, should be a two-table table expression that returns a boolean value. When providing a custom predicate, note that join key values can be arrays or objects, and that normal join semantics do not consider null or undefined values to be equal (that is, <code class="language-plaintext highlighter-rouge">null !== null</code>). Use the <a href="https://idl.uw.edu/arquero/api/op#equal">op.equal</a> function to handle these cases.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">semijoin</span><span class="p">(</span><span class="nx">other</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">semijoin</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyShared</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">semijoin</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">[</span><span class="dl">'</span><span class="s1">keyL</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyR</span><span class="dl">'</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">semijoin</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">keyL</span><span class="p">,</span> <span class="nx">b</span><span class="p">.</span><span class="nx">keyR</span><span class="p">))</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="antijoin" href="verbs.html#antijoin">#</a>
+<em>table</em>.<b>antijoin</b>(<i>other</i>[, <i>on</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/join-filter.js">Source</a></p>
+
+<p>Perform an <a href="https://en.wikipedia.org/wiki/Relational_algebra#Antijoin">anti-join</a>, filtering the left table to only rows that do <em>not</em> match a row in the right table.</p>
+
+<p>Similar to the <a href="verbs.html#filter">filter</a> verb, the resulting table provides a filtered view over the original data; no data copy is made. To create a table that copies only anti-joined data to new data structures, call <a href="verbs.html#reify">reify</a> on the output table.</p>
+
+<ul>
+  <li><em>other</em>: The other (right) table to join with.</li>
+  <li><em>on</em>: The join criteria for matching table rows. If unspecified, the values of all columns with matching names are compared. If array-valued, a two-element array should be provided, containing the columns to compare for the left and right tables, respectively. If a one-element array or a string value is provided, the same column names will be drawn from both tables. If function-valued, should be a two-table table expression that returns a boolean value. When providing a custom predicate, note that join key values can be arrays or objects, and that normal join semantics do not consider null or undefined values to be equal (that is, <code class="language-plaintext highlighter-rouge">null !== null</code>). Use the <a href="https://idl.uw.edu/arquero/api/op#equal">op.equal</a> function to handle these cases.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">antijoin</span><span class="p">(</span><span class="nx">other</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">antijoin</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyShared</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">antijoin</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">[</span><span class="dl">'</span><span class="s1">keyL</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">keyR</span><span class="dl">'</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">antijoin</span><span class="p">(</span><span class="nx">other</span><span class="p">,</span> <span class="p">(</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">keyL</span><span class="p">,</span> <span class="nx">b</span><span class="p">.</span><span class="nx">keyR</span><span class="p">))</span>
+</code></pre></div></div>
+
+<p><br /></p>
+
+<h2 id="cleaning-verbs"><a id="cleaning">Cleaning Verbs</a></h2>
+
+<hr />
+<p><a id="dedupe" href="verbs.html#dedupe">#</a>
+<em>table</em>.<b>dedupe</b>(<i>…keys</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/dedupe.js">Source</a></p>
+
+<p>De-duplicate table rows by removing repeated row values.</p>
+
+<ul>
+  <li><em>keys</em>: Key columns to check for duplicates. Two rows are considered duplicates if they have matching values for all keys. If keys are unspecified, all columns are used. Keys may be column name strings, column index numbers, or value objects with output column names for keys and table expressions for values.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// remove rows that duplicate all column values</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">dedupe</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// remove rows that duplicate the 'a' and 'b' columns</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">dedupe</span><span class="p">(</span><span class="dl">'</span><span class="s1">a</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">b</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// remove rows that duplicate the absolute value of column 'a'</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">dedupe</span><span class="p">({</span> <span class="na">abs</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">abs</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">a</span><span class="p">)</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="impute" href="verbs.html#impute">#</a>
+<em>table</em>.<b>impute</b>(<i>values</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/impute.js">Source</a></p>
+
+<p>Impute missing values or rows. Any of <code class="language-plaintext highlighter-rouge">null</code>, <code class="language-plaintext highlighter-rouge">undefined</code>, or <code class="language-plaintext highlighter-rouge">NaN</code> are considered missing values.</p>
+
+<p>The <em>expand</em> option additionally imputes new rows for missing combinations of values. All combinations of expand values (the full cross product) are considered for each group (if specified by <a href="verbs.html#groupby">groupby</a>). New rows are added for any combination of expand and groupby values not already contained in the table; the additional columns are populated with imputed values (if specified in <em>values</em>) or are otherwise <code class="language-plaintext highlighter-rouge">undefined</code>.</p>
+
+<p>The output table persists a <a href="verbs.html#groupby">groupby</a> specification. If the <em>expand</em> option is specified, a reified table is returned without any <a href="verbs.html#filter">filter</a> or <a href="verbs.html#orderby">orderby</a> settings.</p>
+
+<ul>
+  <li><em>values</em>: Object of name-value pairs for the column values to impute. The input object should have existing column names for keys and table expressions for values. The expressions will be evaluated to determine replacements for any missing values (<code class="language-plaintext highlighter-rouge">null</code>, <code class="language-plaintext highlighter-rouge">undefined</code>, or <code class="language-plaintext highlighter-rouge">NaN</code>).</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>expand</em>: Impute new rows for any missing combinations of the provided expansion values. Accepts column names, column indices, or an object of name-expression pairs. Table expressions must be valid inputs to <a href="verbs.html#rollup">rollup</a>. All combinations of values will be checked for each unique set of groupby values.</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// replace missing values in column 'v' with zeros</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">impute</span><span class="p">({</span> <span class="na">v</span><span class="p">:</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="mi">0</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// replace missing values in column 'v' with the mean of non-missing values</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">impute</span><span class="p">({</span> <span class="na">v</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">mean</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">v</span><span class="p">)</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// replace missing values in column 'v' with zeros</span>
+<span class="c1">// impute rows based on all combinations of values in columns 'x' and 'y'</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">impute</span><span class="p">({</span> <span class="na">v</span><span class="p">:</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="mi">0</span> <span class="p">},</span> <span class="p">{</span> <span class="na">expand</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">y</span><span class="dl">'</span><span class="p">]</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<p><br /></p>
+
+<h2 id="reshape-verbs"><a id="reshape">Reshape Verbs</a></h2>
+
+<hr />
+<p><a id="fold" href="verbs.html#fold">#</a>
+<em>table</em>.<b>fold</b>(<i>values</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/fold.js">Source</a></p>
+
+<p>Fold one or more columns into two key-value pair columns. The fold transform is an inverse of the <a href="verbs.html#pivot">pivot</a> transform. The resulting table has two new columns, one containing the column names (named “key”) and the other the column values (named “value”). The number of output rows equals the original row count multiplied by the number of folded columns.</p>
+
+<ul>
+  <li><em>values</em>: The columns to fold. The input may consist of an array with column name strings, objects with output names as keys and current names as values (output names will be ignored), or the output of the selection helper functions <a href="https://idl.uw.edu/arquero/api/#all">all</a>, <a href="https://idl.uw.edu/arquero/api/#not">not</a>, or <a href="https://idl.uw.edu/arquero/api/#range">range</a>).</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>as</em>: A two-element array indicating the output column names to use for the key and value columns, respectively. The default is <code class="language-plaintext highlighter-rouge">['key', 'value']</code>.</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">fold</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">fold</span><span class="p">([</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">colB</span><span class="dl">'</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">fold</span><span class="p">(</span><span class="nx">aq</span><span class="p">.</span><span class="nx">range</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="pivot" href="verbs.html#pivot">#</a>
+<em>table</em>.<b>pivot</b>(<i>keys</i>, <i>values</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/pivot.js">Source</a></p>
+
+<p>Pivot columns into a cross-tabulation. The pivot transform is an inverse of the <a href="verbs.html#fold">fold</a> transform. The resulting table has new columns for each unique combination of the provided <em>keys</em>, populated with the provided <em>values</em>. The provided <em>values</em> must be aggregates, as a single set of keys may include more than one row. If string-valued, the <a href="https://idl.uw.edu/arquero/api/op#any">any</a> aggregate is used. If only one <em>values</em> column is defined, the new pivoted columns are named using key values directly. Otherwise, input value column names are included as a component of the output column names.</p>
+
+<ul>
+  <li><em>keys</em>: Key values to map to new column names. Keys may be an array of column name strings, column index numbers, or value objects with output column names for keys and table expressions for values.</li>
+  <li><em>values</em>: Output values for pivoted columns. Column string names will be wrapped in any <a href="https://idl.uw.edu/arquero/api/op#any">any</a> aggregate. If object-valued, the input object should have output value names for keys and aggregate table expressions for values.</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>limit</em>: The maximum number of new columns to generate (default <code class="language-plaintext highlighter-rouge">Infinity</code>).</li>
+      <li><em>keySeparator</em>: A string to place between multiple key names (default <code class="language-plaintext highlighter-rouge">'_'</code>).</li>
+      <li><em>valueSeparator</em>: A string to place between key and value names (default <code class="language-plaintext highlighter-rouge">'_'</code>).</li>
+      <li><em>sort</em>: A boolean flag (default <code class="language-plaintext highlighter-rouge">true</code>) for alphabetical sorting of new column names.</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// pivot the values in the 'key' column to be new column names</span>
+<span class="c1">// using the 'value' column as the new column values</span>
+<span class="c1">// the any() aggregate combines multiple values with the same key</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">pivot</span><span class="p">(</span><span class="dl">'</span><span class="s1">key</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">value</span><span class="dl">'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// pivot lowercase values of the 'key' column to be new column names</span>
+<span class="c1">// use the sum of corresponding 'value' entris as new column values</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">pivot</span><span class="p">(</span>
+  <span class="p">{</span> <span class="na">key</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">lower</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">key</span><span class="p">)</span> <span class="p">},</span>
+  <span class="p">{</span> <span class="na">value</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">sum</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span> <span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// pivot on key column 'type' and value columns ['x', 'y']</span>
+<span class="c1">// generates: { x_a: [1], x_b: [2], y_a: [3], y_b: [4] }</span>
+<span class="nx">aq</span><span class="p">.</span><span class="nx">table</span><span class="p">({</span> <span class="na">type</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">a</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">b</span><span class="dl">'</span><span class="p">],</span> <span class="na">x</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="na">y</span><span class="p">:</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span> <span class="p">]})</span>
+  <span class="p">.</span><span class="nx">pivot</span><span class="p">(</span><span class="dl">'</span><span class="s1">type</span><span class="dl">'</span><span class="p">,</span> <span class="p">[</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">y</span><span class="dl">'</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// pivot on the combination of the keys 'foo' and 'bar' for the values of 'x' and 'y'</span>
+<span class="nx">aq</span><span class="p">.</span><span class="nx">table</span><span class="p">({</span> <span class="na">foo</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">a</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">b</span><span class="dl">'</span><span class="p">],</span> <span class="na">bar</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">u</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">v</span><span class="dl">'</span><span class="p">],</span> <span class="na">x</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="na">y</span><span class="p">:</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span> <span class="p">]})</span>
+  <span class="p">.</span><span class="nx">pivot</span><span class="p">([</span><span class="dl">'</span><span class="s1">foo</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">bar</span><span class="dl">'</span><span class="p">],</span> <span class="p">[</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">y</span><span class="dl">'</span><span class="p">])</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="spread" href="verbs.html#spread">#</a>
+<em>table</em>.<b>spread</b>(<i>values</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/spread.js">Source</a></p>
+
+<p>Spread array elements into a set of new columns. Output columns are named either according to the <em>as</em> option or using a combination of the input colum names and array index.</p>
+
+<ul>
+  <li><em>values</em>: The columns to spread, as either an array of column names or a key-value object of table expressions.</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>drop</em>: Boolean flag (default <code class="language-plaintext highlighter-rouge">true</code>) indicating if input columns to the spread operation should be dropped in the output table.</li>
+      <li><em>limit</em>: The maximum number of new columns to generate (default <code class="language-plaintext highlighter-rouge">Infinity</code>).</li>
+      <li><em>as</em>: String array of output column names to use. This option only applies when a single column is spread. If the given array of names is shorter than the number of generated columns and no <em>limit</em> option is specified, the additional generated columns will be dropped (in other words, the length of the <em>as</em> array then serves as the limit value).</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// generate new columns 'text_1', 'text_2', etc. by splitting on whitespace</span>
+<span class="c1">// the input column 'text' is dropped from the output</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">spread</span><span class="p">({</span> <span class="na">text</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">split</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">text</span><span class="p">,</span> <span class="dl">'</span><span class="s1"> </span><span class="dl">'</span><span class="p">)</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// generate new columns 'text_1', 'text_2', etc. by splitting on whitespace</span>
+<span class="c1">// the input column 'text' is retained in the output</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">spread</span><span class="p">({</span> <span class="na">text</span><span class="p">:</span> <span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">op</span><span class="p">.</span><span class="nx">split</span><span class="p">(</span><span class="nx">d</span><span class="p">.</span><span class="nx">text</span><span class="p">,</span> <span class="dl">'</span><span class="s1"> </span><span class="dl">'</span><span class="p">)</span> <span class="p">},</span> <span class="p">{</span> <span class="na">drop</span><span class="p">:</span> <span class="kc">false</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// spread the 'arrayCol' column across a maximum of 100 new columns</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">spread</span><span class="p">(</span><span class="dl">'</span><span class="s1">arrayCol</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span> <span class="na">limit</span><span class="p">:</span> <span class="mi">100</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">// extract the first two 'arrayCol' entries into 'value1', 'value2' columns</span>
+<span class="nx">table</span><span class="p">.</span><span class="nx">spread</span><span class="p">(</span><span class="dl">'</span><span class="s1">arrayCol</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span> <span class="na">as</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">value1</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">value2</span><span class="dl">'</span><span class="p">]</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="unroll" href="verbs.html#unroll">#</a>
+<em>table</em>.<b>unroll</b>(<i>values</i>[, <i>options</i>]) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/unroll.js">Source</a></p>
+
+<p>Unroll one or more array-valued columns into new rows. If more than one array value is used, the number of new rows is the smaller of the limit and the largest length. Values for all other columns are copied over.</p>
+
+<ul>
+  <li><em>values</em>: The columns to unroll, as either an array of column names or a key-value object of table expressions.</li>
+  <li><em>options</em>: An options object:
+    <ul>
+      <li><em>limit</em>: The maximum number of new columns to generate per array value (default <code class="language-plaintext highlighter-rouge">Infinity</code>).</li>
+      <li><em>index</em>: Boolean flag (default <code class="language-plaintext highlighter-rouge">false</code>) or column name for adding zero-based array index values as an output column. If <code class="language-plaintext highlighter-rouge">true</code>, a new column named “index” will be added. If string-valued, a new column with the given name will be added.</li>
+      <li><em>drop</em>: A selection of columns to drop (exclude) from the unrolled output. The input may consist of column name strings, column integer indices, objects with output names as keys (object values will be ignored), or the output of the selection helper functions <a href="https://idl.uw.edu/arquero/api/#all">all</a>, <a href="https://idl.uw.edu/arquero/api/#not">not</a>, or <a href="https://idl.uw.edu/arquero/api/#range">range</a>).</li>
+    </ul>
+  </li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">unroll</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span> <span class="na">limit</span><span class="p">:</span> <span class="mi">1000</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">unroll</span><span class="p">(</span><span class="dl">'</span><span class="s1">colA</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span> <span class="na">limit</span><span class="p">:</span> <span class="mi">1000</span><span class="p">,</span> <span class="na">index</span><span class="p">:</span> <span class="dl">'</span><span class="s1">idxnum</span><span class="dl">'</span> <span class="p">})</span>
+</code></pre></div></div>
+
+<p><br /></p>
+
+<h2 id="set-verbs"><a id="sets">Set Verbs</a></h2>
+
+<hr />
+<p><a id="concat" href="verbs.html#concat">#</a>
+<em>table</em>.<b>concat</b>(<i>…tables</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/concat.js">Source</a></p>
+
+<p>Concatenate multiple tables into a single table, preserving all rows. This transformation mirrors the <a href="https://en.wikipedia.org/wiki/Set_operations_%28SQL%29#UNION_operator">UNION_ALL</a> operation in SQL. It is similar to <a href="verbs.html#union">union</a> but retains all rows, without removing duplicates. Only named columns in this table are included in the output.</p>
+
+<ul>
+  <li><em>tables</em>: A list of tables to concatenate.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nx">other</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nx">other1</span><span class="p">,</span> <span class="nx">other2</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">concat</span><span class="p">([</span><span class="nx">other1</span><span class="p">,</span> <span class="nx">other2</span><span class="p">])</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="union" href="verbs.html#union">#</a>
+<em>table</em>.<b>union</b>(<i>…tables</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/union.js">Source</a></p>
+
+<p>Union multiple tables into a single table, deduplicating all rows. This transformation mirrors the <a href="https://en.wikipedia.org/wiki/Set_operations_%28SQL%29#UNION_operator">UNION</a> operation in SQL. It is similar to <a href="verbs.html#concat">concat</a> but suppresses duplicate rows with values identical to another row. Only named columns in this table are included in the output.</p>
+
+<ul>
+  <li><em>tables</em>: A list of tables to union.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">union</span><span class="p">(</span><span class="nx">other</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">union</span><span class="p">(</span><span class="nx">other1</span><span class="p">,</span> <span class="nx">other2</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">union</span><span class="p">([</span><span class="nx">other1</span><span class="p">,</span> <span class="nx">other2</span><span class="p">])</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="intersect" href="verbs.html#intersect">#</a>
+<em>table</em>.<b>intersect</b>(<i>…tables</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/intersect.js">Source</a></p>
+
+<p><a href="https://en.wikipedia.org/wiki/Set_operations_%28SQL%29#INTERSECT_operator">Intersect</a> multiple tables, keeping only rows with matching values for all columns in all tables, and deduplicates the rows. This transformation is similar to a series of one or more <a href="verbs.html#semijoin">semijoin</a> calls, but additionally suppresses duplicate rows.</p>
+
+<ul>
+  <li><em>tables</em>: A list of tables to intersect.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">intersect</span><span class="p">(</span><span class="nx">other</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">intersect</span><span class="p">(</span><span class="nx">other1</span><span class="p">,</span> <span class="nx">other2</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">intersect</span><span class="p">([</span><span class="nx">other1</span><span class="p">,</span> <span class="nx">other2</span><span class="p">])</span>
+</code></pre></div></div>
+
+<hr />
+<p><a id="except" href="verbs.html#except">#</a>
+<em>table</em>.<b>except</b>(<i>…tables</i>) · <a href="https://github.com/uwdata/arquero/blob/master/src/verbs/except.js">Source</a></p>
+
+<p>Compute the <a href="https://en.wikipedia.org/wiki/Set_operations_%28SQL%29#EXCEPT_operator">set difference</a> with multiple tables, keeping only rows in this table whose values do not occur in the other tables. This transformation is similar to a series of one or more <a href="verbs.html#antijoin">antijoin</a> calls, but additionally suppresses duplicate rows.</p>
+
+<ul>
+  <li><em>tables</em>: A list of tables to difference.</li>
+</ul>
+
+<p><em>Examples</em></p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">except</span><span class="p">(</span><span class="nx">other</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">except</span><span class="p">(</span><span class="nx">other1</span><span class="p">,</span> <span class="nx">other2</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">table</span><span class="p">.</span><span class="nx">except</span><span class="p">([</span><span class="nx">other1</span><span class="p">,</span> <span class="nx">other2</span><span class="p">])</span>
+</code></pre></div></div>
+
+
+      
+      <div class="footer border-top border-gray-light mt-5 pt-3 text-right text-gray">
+        This site is open source. <a href="https://github.com/uwdata/arquero/edit/main/docs/api/verbs.md">Improve this page</a>.
+      </div>
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>

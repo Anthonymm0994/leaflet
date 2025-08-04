@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DuckDB Offline Test - Step by Step</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .pending { background: #fff3cd; color: #856404; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>DuckDB Offline Test - Step by Step</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Basic Environment</h2>
+        <div id="test1-status" class="status pending">Pending...</div>
+        <button onclick="runTest1()">Run Test 1</button>
+        <pre id="test1-log"></pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Load Dependencies</h2>
+        <div id="test2-status" class="status pending">Pending...</div>
+        <button onclick="runTest2()" id="test2-btn" disabled>Run Test 2</button>
+        <pre id="test2-log"></pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Create WASM Blob</h2>
+        <div id="test3-status" class="status pending">Pending...</div>
+        <button onclick="runTest3()" id="test3-btn" disabled>Run Test 3</button>
+        <pre id="test3-log"></pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 4: Initialize DuckDB</h2>
+        <div id="test4-status" class="status pending">Pending...</div>
+        <button onclick="runTest4()" id="test4-btn" disabled>Run Test 4</button>
+        <pre id="test4-log"></pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 5: Run Query</h2>
+        <div id="test5-status" class="status pending">Pending...</div>
+        <button onclick="runTest5()" id="test5-btn" disabled>Run Test 5</button>
+        <pre id="test5-log"></pre>
+    </div>
+    
+    <script>
+        // Global variables
+        let duckdb = null;
+        let db = null;
+        let conn = null;
+        let wasmBlob = null;
+        let workerBlob = null;
+        
+        // Logging helper
+        function log(testId, message) {
+            const logEl = document.getElementById(testId + '-log');
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            logEl.textContent += `[${timestamp}] ${message}\n`;
+            console.log(`[${testId}]`, message);
+        }
+        
+        function setStatus(testId, status, message) {
+            const statusEl = document.getElementById(testId + '-status');
+            statusEl.className = 'status ' + status;
+            statusEl.textContent = message;
+        }
+        
+        // Test 1: Basic Environment
+        async function runTest1() {
+            const testId = 'test1';
+            log(testId, 'Starting basic environment test...');
+            
+            try {
+                // Check blob URL support
+                const testBlob = new Blob(['test'], {type: 'text/plain'});
+                const testUrl = URL.createObjectURL(testBlob);
+                log(testId, `Blob URL created: ${testUrl}`);
+                URL.revokeObjectURL(testUrl);
+                
+                // Check Web Worker support
+                const workerCode = 'self.postMessage("worker test");';
+                const workerBlob = new Blob([workerCode], {type: 'application/javascript'});
+                const workerUrl = URL.createObjectURL(workerBlob);
+                const worker = new Worker(workerUrl);
+                
+                await new Promise((resolve, reject) => {
+                    worker.onmessage = (e) => {
+                        log(testId, `Worker message received: ${e.data}`);
+                        worker.terminate();
+                        URL.revokeObjectURL(workerUrl);
+                        resolve();
+                    };
+                    worker.onerror = reject;
+                });
+                
+                // Check WebAssembly support
+                if (typeof WebAssembly === 'undefined') {
+                    throw new Error('WebAssembly not supported');
+                }
+                log(testId, 'WebAssembly is supported');
+                
+                setStatus(testId, 'success', 'Environment check passed!');
+                document.getElementById('test2-btn').disabled = false;
+                
+            } catch (error) {
+                log(testId, `Error: ${error.message}`);
+                setStatus(testId, 'error', `Failed: ${error.message}`);
+            }
+        }
+        
+        // Test 2: Load Dependencies
+        async function runTest2() {
+            const testId = 'test2';
+            log(testId, 'Loading DuckDB from CDN for testing...');
+            
+            try {
+                // Load DuckDB from CDN
+                const script = document.createElement('script');
+                script.type = 'module';
+                
+                const moduleCode = `
+                    import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@latest/+esm';
+                    window.duckdb = duckdb;
+                    window.dispatchEvent(new Event('duckdb-loaded'));
+                `;
+                
+                script.textContent = moduleCode;
+                document.head.appendChild(script);
+                
+                // Wait for DuckDB to load
+                await new Promise((resolve) => {
+                    window.addEventListener('duckdb-loaded', resolve, {once: true});
+                });
+                
+                duckdb = window.duckdb;
+                log(testId, 'DuckDB loaded successfully');
+                log(testId, `DuckDB version: ${duckdb.PACKAGE_VERSION || 'unknown'}`);
+                
+                setStatus(testId, 'success', 'Dependencies loaded!');
+                document.getElementById('test3-btn').disabled = false;
+                
+            } catch (error) {
+                log(testId, `Error: ${error.message}`);
+                setStatus(testId, 'error', `Failed: ${error.message}`);
+            }
+        }
+        
+        // Test 3: Create WASM Blob
+        async function runTest3() {
+            const testId = 'test3';
+            log(testId, 'Creating WASM blob from CDN bundle...');
+            
+            try {
+                // Get bundles
+                const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+                log(testId, 'Got bundle configuration');
+                
+                // Select bundle
+                const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+                log(testId, `Selected bundle: ${bundle.mainModule ? 'MVP' : 'Unknown'}`);
+                
+                // Fetch WASM file
+                log(testId, `Fetching WASM from: ${bundle.mainModule}`);
+                const wasmResponse = await fetch(bundle.mainModule);
+                const wasmBytes = await wasmResponse.arrayBuffer();
+                log(testId, `WASM size: ${(wasmBytes.byteLength / 1024 / 1024).toFixed(2)} MB`);
+                
+                // Create blob
+                wasmBlob = new Blob([wasmBytes], {type: 'application/wasm'});
+                const wasmUrl = URL.createObjectURL(wasmBlob);
+                log(testId, `WASM blob URL created: ${wasmUrl}`);
+                
+                // Fetch worker
+                log(testId, `Fetching worker from: ${bundle.mainWorker}`);
+                const workerResponse = await fetch(bundle.mainWorker);
+                const workerCode = await workerResponse.text();
+                log(testId, `Worker size: ${(workerCode.length / 1024).toFixed(2)} KB`);
+                
+                // Create worker blob
+                workerBlob = new Blob([workerCode], {type: 'application/javascript'});
+                const workerUrl = URL.createObjectURL(workerBlob);
+                log(testId, `Worker blob URL created: ${workerUrl}`);
+                
+                // Store bundle info
+                window.testBundle = {
+                    mainModule: wasmUrl,
+                    mainWorker: workerUrl,
+                    pthreadWorker: null
+                };
+                
+                setStatus(testId, 'success', 'WASM blob created!');
+                document.getElementById('test4-btn').disabled = false;
+                
+            } catch (error) {
+                log(testId, `Error: ${error.message}`);
+                setStatus(testId, 'error', `Failed: ${error.message}`);
+            }
+        }
+        
+        // Test 4: Initialize DuckDB
+        async function runTest4() {
+            const testId = 'test4';
+            log(testId, 'Initializing DuckDB with blob URLs...');
+            
+            try {
+                const bundle = window.testBundle;
+                
+                // Create worker from blob URL
+                log(testId, 'Creating worker...');
+                const worker = new Worker(bundle.mainWorker);
+                
+                // Create logger
+                const logger = new duckdb.ConsoleLogger();
+                
+                // Create database
+                log(testId, 'Creating AsyncDuckDB instance...');
+                db = new duckdb.AsyncDuckDB(logger, worker);
+                
+                // Instantiate
+                log(testId, 'Instantiating DuckDB...');
+                await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+                
+                // Connect
+                log(testId, 'Creating connection...');
+                conn = await db.connect();
+                
+                // Test query
+                log(testId, 'Testing basic query...');
+                const result = await conn.query('SELECT 42 as answer');
+                const data = result.toArray();
+                log(testId, `Query result: ${JSON.stringify(data)}`);
+                
+                setStatus(testId, 'success', 'DuckDB initialized!');
+                document.getElementById('test5-btn').disabled = false;
+                
+            } catch (error) {
+                log(testId, `Error: ${error.message}`);
+                log(testId, `Stack: ${error.stack}`);
+                setStatus(testId, 'error', `Failed: ${error.message}`);
+            }
+        }
+        
+        // Test 5: Run Query
+        async function runTest5() {
+            const testId = 'test5';
+            log(testId, 'Running test queries...');
+            
+            try {
+                // Create test table
+                log(testId, 'Creating test table...');
+                await conn.query(`
+                    CREATE TABLE test_data AS 
+                    SELECT 
+                        v AS id,
+                        'Item ' || v AS name,
+                        (v * 10 + (random() * 50)::INT) AS value
+                    FROM generate_series(1, 100) t(v)
+                `);
+                
+                // Count rows
+                log(testId, 'Counting rows...');
+                const countResult = await conn.query('SELECT COUNT(*) as count FROM test_data');
+                const count = countResult.toArray()[0].count;
+                log(testId, `Row count: ${count}`);
+                
+                // Aggregate query
+                log(testId, 'Running aggregate query...');
+                const aggResult = await conn.query(`
+                    SELECT 
+                        MIN(value) as min_val,
+                        MAX(value) as max_val,
+                        AVG(value) as avg_val
+                    FROM test_data
+                `);
+                const agg = aggResult.toArray()[0];
+                log(testId, `Aggregates: MIN=${agg.min_val}, MAX=${agg.max_val}, AVG=${agg.avg_val.toFixed(2)}`);
+                
+                // Sample data
+                log(testId, 'Fetching sample data...');
+                const sampleResult = await conn.query('SELECT * FROM test_data LIMIT 5');
+                const sample = sampleResult.toArray();
+                log(testId, 'Sample data:');
+                sample.forEach(row => {
+                    log(testId, `  ID: ${row.id}, Name: ${row.name}, Value: ${row.value}`);
+                });
+                
+                setStatus(testId, 'success', 'All tests passed!');
+                log(testId, '✅ DuckDB is working correctly with blob URLs!');
+                
+            } catch (error) {
+                log(testId, `Error: ${error.message}`);
+                setStatus(testId, 'error', `Failed: ${error.message}`);
+            }
+        }
+        
+        // Auto-run first test
+        window.addEventListener('load', () => {
+            console.log('Page loaded, ready to start tests');
+        });
+    </script>
+</body>
+</html>

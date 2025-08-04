@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Arrow Data Explorer</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f3f4f6;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+        
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        
+        .header { 
+            background: var(--bg-primary); 
+            padding: 24px; 
+            border-radius: 12px; 
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header p {
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+        
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--warning-color);
+        }
+        
+        .status-dot.ready { background: var(--success-color); }
+        .status-dot.error { background: var(--error-color); }
+        
+        .panel {
+            background: var(--bg-primary);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+        }
+        
+        .panel h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sql-editor-wrapper {
+            position: relative;
+            margin-bottom: 16px;
+        }
+        
+        .sql-editor {
+            width: 100%;
+            min-height: 150px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            padding: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            resize: vertical;
+            transition: border-color 0.2s;
+            background: #f9fafb;
+        }
+        
+        .sql-editor:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: var(--bg-primary);
+        }
+        
+        .editor-hints {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--bg-primary);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:hover:not(:disabled) { 
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+        
+        .btn:disabled { 
+            background: #d1d5db; 
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--bg-secondary);
+            border-color: var(--primary-color);
+        }
+        
+        .select-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        
+        select {
+            appearance: none;
+            background: var(--bg-primary);
+            border: 2px solid var(--border-color);
+            padding: 10px 40px 10px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        
+        select:hover:not(:disabled) {
+            border-color: var(--primary-color);
+        }
+        
+        select:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        .select-arrow {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            color: var(--text-secondary);
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+            position: relative;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+        }
+        
+        .tab.active {
+            color: var(--primary-color);
+            background: var(--bg-secondary);
+        }
+        
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary-color);
+        }
+        
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .result-stats {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .table-wrapper {
+            overflow: auto;
+            max-height: 500px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-primary);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 14px;
+        }
+        
+        th, td {
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        th {
+            background: var(--bg-secondary);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            color: var(--text-primary);
+        }
+        
+        tr:hover td {
+            background: #f9fafb;
+        }
+        
+        td {
+            color: var(--text-secondary);
+        }
+        
+        .null-value {
+            color: #d1d5db;
+            font-style: italic;
+        }
+        
+        .chart-container {
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 24px;
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        
+        .chart-select {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chart-select label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(4px);
+        }
+        
+        .loading-content {
+            text-align: center;
+        }
+        
+        .spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 16px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .loading-subtext {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        .loading-progress {
+            width: 200px;
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            margin: 16px auto;
+            overflow: hidden;
+        }
+        
+        .loading-progress-bar {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .schema-info {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .schema-info h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        
+        .schema-table {
+            width: 100%;
+            font-size: 14px;
+        }
+        
+        .schema-table th {
+            background: var(--bg-primary);
+            padding: 8px 12px;
+            text-align: left;
+            font-weight: 500;
+        }
+        
+        .schema-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .type-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #e0e7ff;
+            color: #4338ca;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 12px;
+            }
+            
+            .panel {
+                padding: 16px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .btn, select {
+                width: 100%;
+            }
+            
+            .tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .result-stats {
+                flex-direction: column;
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <div class="loading-text">Initializing Data Explorer</div>
+            <div class="loading-subtext">Loading DuckDB engine...</div>
+            <div class="loading-progress">
+                <div class="loading-progress-bar" id="loadingProgress"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span>📊</span>
+                Offline Arrow Data Explorer
+            </h1>
+            <p>Query and visualize Arrow data directly in your browser - no server required</p>
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div id="status-dot" class="status-dot"></div>
+                    <span id="status-text">Initializing...</span>
+                </div>
+                <div class="status-indicator">
+                    <span class="stat-label">Data:</span>
+                    <span id="data-info" class="stat-value">-</span>
+                </div>
+                <div class="status-indicator">
+                    <span class="stat-label">Engine:</span>
+                    <span class="stat-value">DuckDB-WASM</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>
+                <span>🔍</span>
+                SQL Query Editor
+            </h2>
+            <div class="sql-editor-wrapper">
+                <textarea id="sqlEditor" class="sql-editor" placeholder="Enter your SQL query here...">SELECT * FROM arrow_data LIMIT 100</textarea>
+                <div class="editor-hints">Ctrl+Enter to run</div>
+            </div>
+            <div class="controls">
+                <button id="runQuery" class="btn" disabled>
+                    <span>▶</span>
+                    Run Query
+                </button>
+                <button id="clearQuery" class="btn btn-secondary" disabled>
+                    <span>✕</span>
+                    Clear
+                </button>
+                <div class="select-wrapper">
+                    <select id="presetQueries" disabled>
+                        <option value="">Example queries...</option>
+                        <option value="SELECT * FROM arrow_data LIMIT 100">First 100 rows</option>
+                        <option value="SELECT COUNT(*) as total_rows FROM arrow_data">Count total rows</option>
+                        <option value="SELECT * FROM arrow_data WHERE 1=0">Show schema only</option>
+                        <option value="DESCRIBE arrow_data">Describe table structure</option>
+                    </select>
+                    <span class="select-arrow">▼</span>
+                </div>
+                <button id="exportResults" class="btn btn-secondary" disabled>
+                    <span>⬇</span>
+                    Export CSV
+                </button>
+            </div>
+        </div>
+
+        <div class="panel" id="results-panel">
+            <h2>
+                <span>📋</span>
+                Results
+            </h2>
+            
+            <div class="tabs">
+                <button class="tab active" data-tab="table">Table View</button>
+                <button class="tab" data-tab="chart">Visualization</button>
+                <button class="tab" data-tab="schema">Schema Info</button>
+            </div>
+            
+            <div id="tableTab" class="tab-content active">
+                <div id="resultStats" class="result-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Rows:</span>
+                        <span id="rowCount" class="stat-value">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Columns:</span>
+                        <span id="colCount" class="stat-value">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Query time:</span>
+                        <span id="queryTime" class="stat-value">-</span>
+                    </div>
+                </div>
+                <div class="table-wrapper">
+                    <div id="resultTable"></div>
+                </div>
+            </div>
+            
+            <div id="chartTab" class="tab-content">
+                <div class="chart-controls">
+                    <div class="chart-select">
+                        <label for="chartType">Chart Type:</label>
+                        <div class="select-wrapper">
+                            <select id="chartType">
+                                <option value="bar">Bar Chart</option>
+                                <option value="line">Line Chart</option>
+                                <option value="scatter">Scatter Plot</option>
+                                <option value="histogram">Histogram</option>
+                            </select>
+                            <span class="select-arrow">▼</span>
+                        </div>
+                    </div>
+                    <div class="chart-select">
+                        <label for="xAxis">X-Axis:</label>
+                        <div class="select-wrapper">
+                            <select id="xAxis">
+                                <option value="">Select column...</option>
+                            </select>
+                            <span class="select-arrow">▼</span>
+                        </div>
+                    </div>
+                    <div class="chart-select">
+                        <label for="yAxis">Y-Axis:</label>
+                        <div class="select-wrapper">
+                            <select id="yAxis">
+                                <option value="">Select column...</option>
+                            </select>
+                            <span class="select-arrow">▼</span>
+                        </div>
+                    </div>
+                    <button id="updateChart" class="btn btn-secondary">
+                        <span>🔄</span>
+                        Update Chart
+                    </button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="chart" style="max-width: 100%; max-height: 400px;"></canvas>
+                </div>
+            </div>
+            
+            <div id="schemaTab" class="tab-content">
+                <div class="schema-info">
+                    <h3>Table Schema</h3>
+                    <div id="schemaTable"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Embedded Arrow Data (will be populated by build script) -->
+    <script id="arrowData" type="application/octet-stream" data-compressed="true">
+        <!-- Base64 encoded compressed Arrow data will be inserted here -->
+    </script>
+
+    <script type="module">
+        // Import DuckDB-WASM and dependencies
+        import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@latest/+esm';
+        import * as arrow from 'https://cdn.jsdelivr.net/npm/apache-arrow@latest/+esm';
+        import pako from 'https://cdn.jsdelivr.net/npm/pako@2/+esm';
+        
+        // Global variables
+        let db = null;
+        let conn = null;
+        let currentData = null;
+        let currentSchema = null;
+        
+        // UI Elements
+        const elements = {
+            loadingOverlay: document.getElementById('loading-overlay'),
+            loadingProgress: document.getElementById('loadingProgress'),
+            statusDot: document.getElementById('status-dot'),
+            statusText: document.getElementById('status-text'),
+            dataInfo: document.getElementById('data-info'),
+            sqlEditor: document.getElementById('sqlEditor'),
+            runQuery: document.getElementById('runQuery'),
+            clearQuery: document.getElementById('clearQuery'),
+            presetQueries: document.getElementById('presetQueries'),
+            exportResults: document.getElementById('exportResults'),
+            resultTable: document.getElementById('resultTable'),
+            rowCount: document.getElementById('rowCount'),
+            colCount: document.getElementById('colCount'),
+            queryTime: document.getElementById('queryTime'),
+            chartCanvas: document.getElementById('chart'),
+            chartType: document.getElementById('chartType'),
+            xAxis: document.getElementById('xAxis'),
+            yAxis: document.getElementById('yAxis'),
+            updateChart: document.getElementById('updateChart'),
+            schemaTable: document.getElementById('schemaTable')
+        };
+        
+        // Update loading progress
+        function updateLoadingProgress(percent) {
+            elements.loadingProgress.style.width = percent + '%';
+        }
+        
+        // Chart.js style simple charting
+        class SimpleChart {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.padding = 60;
+            }
+            
+            clear() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = 400;
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+            
+            drawBarChart(labels, values, xLabel = '', yLabel = '') {
+                this.clear();
+                const width = this.canvas.width - 2 * this.padding;
+                const height = this.canvas.height - 2 * this.padding;
+                
+                if (values.length === 0) return;
+                
+                const maxValue = Math.max(...values);
+                const minValue = Math.min(...values, 0);
+                const range = maxValue - minValue;
+                const barWidth = width / labels.length * 0.8;
+                const barGap = width / labels.length * 0.2;
+                
+                // Draw axes
+                this.ctx.strokeStyle = '#e5e7eb';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.padding, this.padding);
+                this.ctx.lineTo(this.padding, this.canvas.height - this.padding);
+                this.ctx.lineTo(this.canvas.width - this.padding, this.canvas.height - this.padding);
+                this.ctx.stroke();
+                
+                // Draw bars
+                this.ctx.fillStyle = '#2563eb';
+                values.forEach((value, i) => {
+                    const barHeight = ((value - minValue) / range) * height;
+                    const x = this.padding + i * (barWidth + barGap) + barGap / 2;
+                    const y = this.canvas.height - this.padding - barHeight;
+                    
+                    this.ctx.fillRect(x, y, barWidth, barHeight);
+                    
+                    // Draw value label
+                    this.ctx.fillStyle = '#6b7280';
+                    this.ctx.font = '12px sans-serif';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(
+                        value.toLocaleString(), 
+                        x + barWidth / 2, 
+                        y - 5
+                    );
+                    
+                    // Draw x-axis label
+                    this.ctx.save();
+                    this.ctx.translate(x + barWidth / 2, this.canvas.height - this.padding + 15);
+                    this.ctx.rotate(-Math.PI / 4);
+                    this.ctx.textAlign = 'right';
+                    this.ctx.fillText(String(labels[i]).substring(0, 20), 0, 0);
+                    this.ctx.restore();
+                    
+                    this.ctx.fillStyle = '#2563eb';
+                });
+                
+                // Draw axis labels
+                this.ctx.fillStyle = '#111827';
+                this.ctx.font = '14px sans-serif';
+                this.ctx.textAlign = 'center';
+                
+                // X-axis label
+                if (xLabel) {
+                    this.ctx.fillText(
+                        xLabel,
+                        this.canvas.width / 2,
+                        this.canvas.height - 10
+                    );
+                }
+                
+                // Y-axis label
+                if (yLabel) {
+                    this.ctx.save();
+                    this.ctx.translate(15, this.canvas.height / 2);
+                    this.ctx.rotate(-Math.PI / 2);
+                    this.ctx.fillText(yLabel, 0, 0);
+                    this.ctx.restore();
+                }
+            }
+            
+            drawLineChart(xValues, yValues, xLabel = '', yLabel = '') {
+                this.clear();
+                const width = this.canvas.width - 2 * this.padding;
+                const height = this.canvas.height - 2 * this.padding;
+                
+                if (xValues.length === 0) return;
+                
+                const xMin = Math.min(...xValues);
+                const xMax = Math.max(...xValues);
+                const yMin = Math.min(...yValues);
+                const yMax = Math.max(...yValues);
+                
+                // Draw axes
+                this.ctx.strokeStyle = '#e5e7eb';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.padding, this.padding);
+                this.ctx.lineTo(this.padding, this.canvas.height - this.padding);
+                this.ctx.lineTo(this.canvas.width - this.padding, this.canvas.height - this.padding);
+                this.ctx.stroke();
+                
+                // Draw line
+                this.ctx.strokeStyle = '#2563eb';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                
+                xValues.forEach((x, i) => {
+                    const xPos = this.padding + ((x - xMin) / (xMax - xMin)) * width;
+                    const yPos = this.canvas.height - this.padding - ((yValues[i] - yMin) / (yMax - yMin)) * height;
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(xPos, yPos);
+                    } else {
+                        this.ctx.lineTo(xPos, yPos);
+                    }
+                });
+                
+                this.ctx.stroke();
+                
+                // Draw points
+                this.ctx.fillStyle = '#2563eb';
+                xValues.forEach((x, i) => {
+                    const xPos = this.padding + ((x - xMin) / (xMax - xMin)) * width;
+                    const yPos = this.canvas.height - this.padding - ((yValues[i] - yMin) / (yMax - yMin)) * height;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.arc(xPos, yPos, 4, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                });
+                
+                // Draw labels
+                this.drawAxisLabels(xLabel, yLabel);
+            }
+            
+            drawScatterPlot(xValues, yValues, xLabel = '', yLabel = '') {
+                this.clear();
+                const width = this.canvas.width - 2 * this.padding;
+                const height = this.canvas.height - 2 * this.padding;
+                
+                if (xValues.length === 0) return;
+                
+                const xMin = Math.min(...xValues);
+                const xMax = Math.max(...xValues);
+                const yMin = Math.min(...yValues);
+                const yMax = Math.max(...yValues);
+                
+                // Draw axes
+                this.ctx.strokeStyle = '#e5e7eb';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.padding, this.padding);
+                this.ctx.lineTo(this.padding, this.canvas.height - this.padding);
+                this.ctx.lineTo(this.canvas.width - this.padding, this.canvas.height - this.padding);
+                this.ctx.stroke();
+                
+                // Draw points
+                this.ctx.fillStyle = 'rgba(37, 99, 235, 0.6)';
+                xValues.forEach((x, i) => {
+                    const xPos = this.padding + ((x - xMin) / (xMax - xMin)) * width;
+                    const yPos = this.canvas.height - this.padding - ((yValues[i] - yMin) / (yMax - yMin)) * height;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.arc(xPos, yPos, 5, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                });
+                
+                // Draw labels
+                this.drawAxisLabels(xLabel, yLabel);
+            }
+            
+            drawHistogram(values, bins = 20, label = '') {
+                this.clear();
+                
+                if (values.length === 0) return;
+                
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                const binWidth = (max - min) / bins;
+                
+                // Create bins
+                const histogram = new Array(bins).fill(0);
+                values.forEach(value => {
+                    const binIndex = Math.min(Math.floor((value - min) / binWidth), bins - 1);
+                    histogram[binIndex]++;
+                });
+                
+                // Create labels
+                const labels = histogram.map((_, i) => {
+                    const start = min + i * binWidth;
+                    return start.toFixed(2);
+                });
+                
+                this.drawBarChart(labels, histogram, label, 'Frequency');
+            }
+            
+            drawAxisLabels(xLabel, yLabel) {
+                this.ctx.fillStyle = '#111827';
+                this.ctx.font = '14px sans-serif';
+                this.ctx.textAlign = 'center';
+                
+                // X-axis label
+                if (xLabel) {
+                    this.ctx.fillText(
+                        xLabel,
+                        this.canvas.width / 2,
+                        this.canvas.height - 10
+                    );
+                }
+                
+                // Y-axis label
+                if (yLabel) {
+                    this.ctx.save();
+                    this.ctx.translate(15, this.canvas.height / 2);
+                    this.ctx.rotate(-Math.PI / 2);
+                    this.ctx.fillText(yLabel, 0, 0);
+                    this.ctx.restore();
+                }
+            }
+        }
+        
+        const chart = new SimpleChart(elements.chartCanvas);
+        
+        // Tab functionality
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                
+                // Update active tab
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Show corresponding content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.getElementById(tabName + 'Tab').classList.add('active');
+            });
+        });
+        
+        // Update status
+        function updateStatus(message, type = 'loading') {
+            elements.statusText.textContent = message;
+            elements.statusDot.className = 'status-dot ' + (type === 'ready' ? 'ready' : type === 'error' ? 'error' : '');
+        }
+        
+        // Load Arrow data from embedded base64
+        async function loadArrowData() {
+            try {
+                updateStatus('Loading Arrow data...', 'loading');
+                updateLoadingProgress(30);
+                
+                // Get the embedded Arrow data
+                const arrowDataElement = document.getElementById('arrowData');
+                let arrowData = arrowDataElement.textContent.trim();
+                const isCompressed = arrowDataElement.dataset.compressed === 'true';
+                
+                // For development: if no data is embedded, create sample data
+                if (!arrowData || arrowData.includes('Base64 encoded')) {
+                    console.log('No embedded data found, creating sample data...');
+                    updateLoadingProgress(100);
+                    return await createSampleData();
+                }
+                
+                updateLoadingProgress(40);
+                
+                // Decode base64 to binary
+                const binaryString = atob(arrowData);
+                const compressedBytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    compressedBytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                updateLoadingProgress(50);
+                
+                let bytes;
+                if (isCompressed) {
+                    // Decompress the data
+                    updateStatus('Decompressing data...', 'loading');
+                    bytes = pako.ungzip(compressedBytes);
+                    updateLoadingProgress(70);
+                } else {
+                    bytes = compressedBytes;
+                }
+                
+                // Read Arrow data
+                updateStatus('Reading Arrow format...', 'loading');
+                const reader = arrow.RecordBatchReader.from(bytes);
+                const table = new arrow.Table(reader);
+                
+                updateLoadingProgress(80);
+                
+                // Convert to DuckDB
+                updateStatus('Loading into DuckDB...', 'loading');
+                await conn.insertArrowTable(table, { name: 'arrow_data' });
+                
+                updateLoadingProgress(90);
+                
+                // Get table info
+                const countResult = await conn.query('SELECT COUNT(*) as count FROM arrow_data');
+                const count = countResult.toArray()[0].count;
+                
+                elements.dataInfo.textContent = `${count.toLocaleString()} rows`;
+                updateStatus('Arrow data loaded successfully', 'ready');
+                updateLoadingProgress(100);
+                
+                return true;
+            } catch (error) {
+                console.error('Error loading Arrow data:', error);
+                updateStatus(`Error loading data: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        // Create sample data for development
+        async function createSampleData() {
+            try {
+                // Create a sample table with various data types
+                await conn.query(`
+                    CREATE TABLE arrow_data AS 
+                    SELECT 
+                        row_number() OVER () AS id,
+                        'Product_' || (row_number() OVER ()) AS product_name,
+                        ROUND((random() * 1000)::DECIMAL, 2) AS price,
+                        CAST((random() * 100)::INT AS INT) AS quantity,
+                        CASE 
+                            WHEN random() < 0.25 THEN 'Electronics'
+                            WHEN random() < 0.5 THEN 'Clothing'
+                            WHEN random() < 0.75 THEN 'Food'
+                            ELSE 'Other'
+                        END AS category,
+                        DATE '2024-01-01' + INTERVAL (random() * 365) DAY AS sale_date,
+                        random() > 0.5 AS is_featured,
+                        ROUND((random() * 5)::DECIMAL, 1) AS rating,
+                        'Description for product ' || (row_number() OVER ()) AS description
+                    FROM generate_series(1, 10000)
+                `);
+                
+                elements.dataInfo.textContent = '10,000 rows (sample)';
+                updateStatus('Sample data created', 'ready');
+                return true;
+            } catch (error) {
+                console.error('Error creating sample data:', error);
+                updateStatus(`Error creating sample data: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        // Initialize DuckDB
+        async function initializeDuckDB() {
+            try {
+                const loadingSubtext = document.querySelector('.loading-subtext');
+                loadingSubtext.textContent = 'Loading DuckDB engine...';
+                updateLoadingProgress(10);
+                
+                // Initialize DuckDB-WASM
+                const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+                const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+                
+                updateLoadingProgress(20);
+                
+                const worker_url = URL.createObjectURL(
+                    new Blob([`importScripts("${bundle.mainWorker}");`], {type: 'text/javascript'})
+                );
+                
+                const worker = new Worker(worker_url);
+                const logger = new duckdb.ConsoleLogger();
+                db = new duckdb.AsyncDuckDB(logger, worker);
+                
+                await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+                URL.revokeObjectURL(worker_url);
+                
+                conn = await db.connect();
+                
+                // Load Arrow data
+                loadingSubtext.textContent = 'Loading data...';
+                const dataLoaded = await loadArrowData();
+                
+                if (dataLoaded) {
+                    // Enable controls
+                    elements.runQuery.disabled = false;
+                    elements.clearQuery.disabled = false;
+                    elements.presetQueries.disabled = false;
+                    elements.exportResults.disabled = false;
+                    
+                    // Hide loading overlay
+                    setTimeout(() => {
+                        elements.loadingOverlay.style.display = 'none';
+                    }, 300);
+                    
+                    // Run initial query
+                    await runQuery();
+                }
+            } catch (error) {
+                updateStatus(`Initialization error: ${error.message}`, 'error');
+                console.error('DuckDB initialization error:', error);
+                elements.loadingOverlay.style.display = 'none';
+                
+                // Show error in results
+                elements.resultTable.innerHTML = `
+                    <div class="error-message">
+                        <span>⚠</span>
+                        <span>Failed to initialize: ${error.message}</span>
+                    </div>
+                `;
+            }
+        }
+        
+        // Run SQL query
+        async function runQuery() {
+            const sql = elements.sqlEditor.value.trim();
+            if (!sql) return;
+            
+            try {
+                updateStatus('Running query...', 'loading');
+                const startTime = performance.now();
+                
+                const result = await conn.query(sql);
+                const data = result.toArray();
+                const schema = result.schema;
+                
+                const duration = performance.now() - startTime;
+                
+                currentData = data;
+                currentSchema = schema;
+                
+                updateStatus('Query completed', 'ready');
+                
+                // Update stats
+                elements.rowCount.textContent = data.length.toLocaleString();
+                elements.colCount.textContent = schema.fields.length.toLocaleString();
+                elements.queryTime.textContent = `${duration.toFixed(2)}ms`;
+                
+                // Display results
+                displayResults(data, schema);
+                updateChartOptions(schema);
+                displaySchema(schema);
+                
+            } catch (error) {
+                updateStatus(`Query error: ${error.message}`, 'error');
+                console.error('Query error:', error);
+                
+                elements.resultTable.innerHTML = `
+                    <div class="error-message">
+                        <span>⚠</span>
+                        <span>${error.message}</span>
+                    </div>
+                `;
+            }
+        }
+        
+        // Display query results in table
+        function displayResults(data, schema) {
+            if (!data || data.length === 0) {
+                elements.resultTable.innerHTML = '<p style="padding: 20px; text-align: center; color: #6b7280;">No results returned</p>';
+                return;
+            }
+            
+            const columns = schema.fields.map(field => field.name);
+            
+            let html = '<table><thead><tr>';
+            columns.forEach(col => {
+                html += `<th>${escapeHtml(col)}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            
+            // Limit display to 1000 rows for performance
+            const displayData = data.slice(0, 1000);
+            
+            displayData.forEach(row => {
+                html += '<tr>';
+                columns.forEach(col => {
+                    const value = row[col];
+                    const displayValue = value === null ? '<span class="null-value">NULL</span>' : 
+                                       value instanceof Date ? value.toISOString().split('T')[0] :
+                                       typeof value === 'object' ? JSON.stringify(value) :
+                                       escapeHtml(String(value));
+                    html += `<td>${displayValue}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            
+            if (data.length > 1000) {
+                html += `<p style="padding: 10px; text-align: center; color: #6b7280; font-size: 14px;">
+                    Showing first 1,000 of ${data.length.toLocaleString()} rows
+                </p>`;
+            }
+            
+            elements.resultTable.innerHTML = html;
+        }
+        
+        // Display schema information
+        function displaySchema(schema) {
+            let html = '<table class="schema-table"><thead><tr><th>Column Name</th><th>Data Type</th></tr></thead><tbody>';
+            
+            schema.fields.forEach(field => {
+                const typeName = field.type.toString();
+                html += `<tr>
+                    <td>${escapeHtml(field.name)}</td>
+                    <td><span class="type-badge">${escapeHtml(typeName)}</span></td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            elements.schemaTable.innerHTML = html;
+        }
+        
+        // Update chart options based on schema
+        function updateChartOptions(schema) {
+            // Clear existing options
+            elements.xAxis.innerHTML = '<option value="">Select column...</option>';
+            elements.yAxis.innerHTML = '<option value="">Select column...</option>';
+            
+            // Add columns as options
+            schema.fields.forEach(field => {
+                const option = `<option value="${field.name}">${field.name}</option>`;
+                elements.xAxis.innerHTML += option;
+                elements.yAxis.innerHTML += option;
+            });
+        }
+        
+        // Update chart
+        function updateChart() {
+            if (!currentData || currentData.length === 0) return;
+            
+            const chartType = elements.chartType.value;
+            const xCol = elements.xAxis.value;
+            const yCol = elements.yAxis.value;
+            
+            if (!xCol && chartType !== 'histogram') {
+                chart.clear();
+                return;
+            }
+            
+            try {
+                switch (chartType) {
+                    case 'bar':
+                        if (!xCol || !yCol) return;
+                        const labels = currentData.slice(0, 50).map(row => row[xCol]);
+                        const values = currentData.slice(0, 50).map(row => Number(row[yCol]) || 0);
+                        chart.drawBarChart(labels, values, xCol, yCol);
+                        break;
+                        
+                    case 'line':
+                        if (!xCol || !yCol) return;
+                        const xValues = currentData.map(row => Number(row[xCol]) || 0);
+                        const yValues = currentData.map(row => Number(row[yCol]) || 0);
+                        chart.drawLineChart(xValues, yValues, xCol, yCol);
+                        break;
+                        
+                    case 'scatter':
+                        if (!xCol || !yCol) return;
+                        const scatterX = currentData.map(row => Number(row[xCol]) || 0);
+                        const scatterY = currentData.map(row => Number(row[yCol]) || 0);
+                        chart.drawScatterPlot(scatterX, scatterY, xCol, yCol);
+                        break;
+                        
+                    case 'histogram':
+                        if (!xCol) return;
+                        const histValues = currentData.map(row => Number(row[xCol]) || 0);
+                        chart.drawHistogram(histValues, 20, xCol);
+                        break;
+                }
+            } catch (error) {
+                console.error('Chart error:', error);
+                chart.clear();
+            }
+        }
+        
+        // Export results to CSV
+        function exportToCSV() {
+            if (!currentData || currentData.length === 0) return;
+            
+            const columns = currentSchema.fields.map(field => field.name);
+            let csv = columns.map(col => `"${col}"`).join(',') + '\n';
+            
+            currentData.forEach(row => {
+                const values = columns.map(col => {
+                    const value = row[col];
+                    if (value === null) return '';
+                    if (typeof value === 'string') return `"${value.replace(/"/g, '""')}"`;
+                    return String(value);
+                });
+                csv += values.join(',') + '\n';
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `query_results_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Utility function to escape HTML
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
+        // Event listeners
+        elements.runQuery.addEventListener('click', runQuery);
+        
+        elements.clearQuery.addEventListener('click', () => {
+            elements.sqlEditor.value = '';
+            elements.sqlEditor.focus();
+        });
+        
+        elements.presetQueries.addEventListener('change', (e) => {
+            if (e.target.value) {
+                elements.sqlEditor.value = e.target.value;
+                runQuery();
+            }
+        });
+        
+        elements.sqlEditor.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                runQuery();
+            }
+        });
+        
+        elements.exportResults.addEventListener('click', exportToCSV);
+        elements.updateChart.addEventListener('click', updateChart);
+        
+        // Auto-update chart when selections change
+        elements.chartType.addEventListener('change', updateChart);
+        elements.xAxis.addEventListener('change', updateChart);
+        elements.yAxis.addEventListener('change', updateChart);
+        
+        // Initialize the application
+        initializeDuckDB();
+    </script>
+</body>
+</html>
