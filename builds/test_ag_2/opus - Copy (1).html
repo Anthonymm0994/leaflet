@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>10M Row Performance Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #e0e0e0; overflow: hidden; }
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 1000; }
+        .progress { width: 400px; height: 6px; background: #333; margin-top: 15px; border-radius: 3px; overflow: hidden; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #4a9eff, #3a8eef); transition: width 0.15s; }
+        .progress-text { margin-top: 10px; font-size: 13px; color: #999; }
+        #main { display: none; height: 100vh; padding: 8px; }
+        .header { background: #1a1a1a; padding: 12px 20px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .stats { display: flex; gap: 25px; font-size: 13px; }
+        .stats span { color: #999; }
+        .stats strong { color: #fff; font-weight: 600; }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-value { font-size: 16px; margin-top: 2px; }
+        button { background: #4a9eff; color: white; border: none; padding: 7px 14px; border-radius: 3px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        button:hover { background: #3a8eef; transform: translateY(-1px); box-shadow: 0 2px 4px rgba(74,158,255,0.3); }
+        button:active { transform: translateY(0); }
+        .button-group { display: flex; gap: 8px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8px; height: calc(100% - 70px); }
+        .panel { background: #1a1a1a; border-radius: 4px; padding: 8px; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .panel-title { font-size: 13px; font-weight: 500; margin-bottom: 5px; color: #ccc; }
+        canvas { position: absolute; top: 32px; left: 8px; right: 8px; bottom: 8px; cursor: crosshair; }
+        select { background: #2a2a2a; color: #e0e0e0; border: 1px solid #444; padding: 4px 8px; border-radius: 3px; position: absolute; top: 5px; right: 8px; font-size: 12px; cursor: pointer; }
+        select:hover { border-color: #666; }
+        #tooltip { position: fixed; background: rgba(20,20,20,0.95); padding: 8px 12px; border-radius: 4px; font-size: 12px; pointer-events: none; display: none; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.3); border: 1px solid #333; }
+        .collapsed { display: none; }
+        .mini-dashboard { display: none; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px; }
+        .mini-panel { background: #1a1a1a; padding: 15px; border-radius: 4px; text-align: center; }
+        .mini-value { font-size: 24px; font-weight: 600; margin-top: 5px; }
+        .legend { position: absolute; bottom: 8px; right: 8px; font-size: 11px; display: flex; gap: 12px; }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div style="font-size: 18px; font-weight: 600;">Generating 10,000,000 rows...</div>
+        <div class="progress"><div class="progress-bar" id="progress"></div></div>
+        <div class="progress-text" id="progressText">0%</div>
+    </div>
+    
+    <div id="main">
+        <div class="header">
+            <h3 style="font-weight: 600;">Performance Dashboard - 10M Rows</h3>
+            <div class="stats">
+                <div class="stat-item">
+                    <span>Total Rows</span>
+                    <strong class="stat-value">10,000,000</strong>
+                </div>
+                <div class="stat-item">
+                    <span>Filtered</span>
+                    <strong class="stat-value" id="filteredCount">10,000,000</strong>
+                </div>
+                <div class="stat-item">
+                    <span>Selected</span>
+                    <strong class="stat-value" id="percentFiltered">100%</strong>
+                </div>
+                <div class="stat-item">
+                    <span>Mean Width</span>
+                    <strong class="stat-value" id="meanWidth">-</strong>
+                </div>
+                <div class="stat-item">
+                    <span>% True</span>
+                    <strong class="stat-value" id="percentTrue">-</strong>
+                </div>
+            </div>
+            <div class="button-group">
+                <button onclick="resetAll()">Reset All</button>
+                <button onclick="exportCSV()">Export CSV</button>
+                <button onclick="saveSnapshot()">Save Snapshot</button>
+                <button onclick="toggleMini()">Mini View</button>
+            </div>
+        </div>
+        
+        <div class="grid" id="mainGrid">
+            <div class="panel">
+                <div class="panel-title">Time Distribution (24h)</div>
+                <canvas id="timeCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Strength Distribution</div>
+                <canvas id="strengthCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Angle Distribution</div>
+                <select id="angleMode" onchange="updateAngleChart()">
+                    <option value="cat2">category_2</option>
+                    <option value="cat4">category_4</option>
+                </select>
+                <canvas id="angleCanvas"></canvas>
+                <div class="legend" id="angleLegend"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Width Distribution</div>
+                <canvas id="widthCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Height Distribution</div>
+                <canvas id="heightCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Category Distribution</div>
+                <canvas id="categoryCanvas"></canvas>
+            </div>
+        </div>
+        
+        <div class="mini-dashboard" id="miniDashboard">
+            <div class="mini-panel">
+                <div>Filtered Rows</div>
+                <div class="mini-value" id="miniFiltered">10M</div>
+            </div>
+            <div class="mini-panel">
+                <div>Selection %</div>
+                <div class="mini-value" id="miniPercent">100%</div>
+            </div>
+            <div class="mini-panel">
+                <div>Avg Strength</div>
+                <div class="mini-value" id="miniStrength">50.0</div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="tooltip"></div>
+    
+    <script>
+        const N = 10000000;
+        const BATCH_SIZE = 100000;
+        const IDLE_BATCH = 50000;
+        
+        let data = {
+            good_time: null,
+            width: null,
+            height: null,
+            angle: null,
+            strength: null,
+            category_4: null,
+            category_2: null,
+            timeSeconds: null
+        };
+        
+        let binCache = {};
+        let filters = { width: null, height: null, angle: null, time: null, strength: null, category: new Set() };
+        let filteredIndices = new Uint8Array(N);
+        let charts = {};
+        let generationComplete = false;
+        
+        // Fast random distributions
+        function normalRandom(mean, stdDev) {
+            const u1 = Math.random();
+            const u2 = Math.random();
+            const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+            return mean + stdDev * z0;
+        }
+        
+        function skewedRandom(min, max, skew) {
+            const u = Math.random();
+            const v = Math.pow(u, skew);
+            return min + (max - min) * v;
+        }
+        
+        function multimodalRandom() {
+            const r = Math.random();
+            if (r < 0.3) return normalRandom(30, 10);
+            else if (r < 0.7) return normalRandom(100, 20);
+            else return normalRandom(170, 15);
+        }
+        
+        function twinPeakAngle() {
+            return Math.random() < 0.5 ? 
+                normalRandom(90, 20) : 
+                normalRandom(270, 20);
+        }
+        
+        // Generate 10M rows
+        function generateData() {
+            data.width = new Float32Array(N);
+            data.height = new Float32Array(N);
+            data.angle = new Float32Array(N);
+            data.strength = new Float32Array(N);
+            data.category_4 = new Uint8Array(N);
+            data.category_2 = new Uint8Array(N);
+            data.timeSeconds = new Float32Array(N);
+            data.good_time = new Array(N);
+            
+            let generated = 0;
+            const startTime = performance.now();
+            
+            function processBatch() {
+                const batchStart = generated;
+                const batchEnd = Math.min(generated + BATCH_SIZE, N);
+                
+                for (let i = batchStart; i < batchEnd; i++) {
+                    data.width[i] = Math.max(1, Math.min(200, multimodalRandom()));
+                    data.height[i] = Math.max(0.2, Math.min(4.8, normalRandom(2.5, 0.8)));
+                    data.angle[i] = (twinPeakAngle() + 360) % 360;
+                    data.strength[i] = Math.max(0, Math.min(100, Math.pow(Math.random(), 1.5) * 100));
+                    data.category_4[i] = Math.floor(Math.random() * 4);
+                    data.category_2[i] = Math.random() < 0.45 ? 1 : 0;
+                    
+                    const timeSkew = Math.random();
+                    const peakHour = timeSkew < 0.3 ? 9 : (timeSkew < 0.7 ? 13 : 18);
+                    data.timeSeconds[i] = Math.max(0, Math.min(86399, normalRandom(peakHour * 3600, 7200)));
+                    
+                    const h = Math.floor(data.timeSeconds[i] / 3600);
+                    const m = Math.floor((data.timeSeconds[i] % 3600) / 60);
+                    const s = Math.floor(data.timeSeconds[i] % 60);
+                    const ms = Math.floor((data.timeSeconds[i] % 1) * 1000);
+                    data.good_time[i] = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}.${ms.toString().padStart(3,'0')}`;
+                    
+                    filteredIndices[i] = 1;
+                }
+                
+                generated = batchEnd;
+                const progress = (generated / N) * 100;
+                document.getElementById('progress').style.width = progress + '%';
+                document.getElementById('progressText').textContent = `${progress.toFixed(1)}% - ${(generated / 1000000).toFixed(1)}M rows`;
+                
+                if (generated < N) {
+                    setTimeout(processBatch, 0);
+                } else {
+                    const elapsed = performance.now() - startTime;
+                    console.log(`Generated ${N.toLocaleString()} rows in ${(elapsed / 1000).toFixed(1)}s`);
+                    prebinData();
+                }
+            }
+            
+            processBatch();
+        }
+        
+        // Pre-bin data for performance
+        function prebinData() {
+            const bins = 100;
+            binCache.width = binData(data.width, 1, 200, bins);
+            binCache.height = binData(data.height, 0.2, 4.8, bins);
+            binCache.strength = binData(data.strength, 0, 100, bins);
+            binCache.time = binData(data.timeSeconds, 0, 86400, 96);
+            binCache.angle = binAngleData();
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('main').style.display = 'block';
+            generationComplete = true;
+            
+            requestAnimationFrame(() => {
+                initCharts();
+                updateStats();
+            });
+        }
+        
+        function binData(arr, min, max, numBins) {
+            const bins = new Array(numBins);
+            const binSize = (max - min) / numBins;
+            const counts = new Uint32Array(numBins);
+            
+            // First pass: count
+            for (let i = 0; i < arr.length; i++) {
+                const bin = Math.min(numBins - 1, Math.max(0, Math.floor((arr[i] - min) / binSize)));
+                counts[bin]++;
+            }
+            
+            // Allocate arrays
+            for (let i = 0; i < numBins; i++) {
+                bins[i] = new Uint32Array(counts[i]);
+                counts[i] = 0; // Reset for second pass
+            }
+            
+            // Second pass: fill indices
+            for (let i = 0; i < arr.length; i++) {
+                const bin = Math.min(numBins - 1, Math.max(0, Math.floor((arr[i] - min) / binSize)));
+                bins[bin][counts[bin]++] = i;
+            }
+            
+            return { bins, binSize, min, max };
+        }
+        
+        function binAngleData() {
+            const numBins = 72;
+            const bins = new Array(numBins);
+            const binSize = 360 / numBins;
+            const counts = new Uint32Array(numBins);
+            
+            for (let i = 0; i < data.angle.length; i++) {
+                const bin = Math.floor(data.angle[i] / binSize) % numBins;
+                counts[bin]++;
+            }
+            
+            for (let i = 0; i < numBins; i++) {
+                bins[i] = new Uint32Array(counts[i]);
+                counts[i] = 0;
+            }
+            
+            for (let i = 0; i < data.angle.length; i++) {
+                const bin = Math.floor(data.angle[i] / binSize) % numBins;
+                bins[bin][counts[bin]++] = i;
+            }
+            
+            return { bins, binSize, numBins };
+        }
+        
+        // Initialize all charts
+        function initCharts() {
+            charts.width = new Histogram('widthCanvas', binCache.width, 'width', v => v.toFixed(0));
+            charts.height = new Histogram('heightCanvas', binCache.height, 'height', v => v.toFixed(1));
+            charts.angle = new AngleChart('angleCanvas');
+            charts.time = new TimeChart('timeCanvas');
+            charts.strength = new Histogram('strengthCanvas', binCache.strength, 'strength', v => v.toFixed(0));
+            charts.category = new CategoryChart('categoryCanvas');
+            
+            updateAllCharts();
+        }
+        
+        // Base Chart class
+        class Chart {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d', { alpha: false });
+                this.isDragging = false;
+                this.selection = null;
+                this._isInitialized = false;
+                
+                this.resize();
+                this._isInitialized = true;
+                window.addEventListener('resize', () => this.resize());
+                
+                this.canvas.addEventListener('mousedown', e => this.onMouseDown(e));
+                this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
+                this.canvas.addEventListener('mouseup', e => this.onMouseUp(e));
+                this.canvas.addEventListener('mouseleave', e => this.onMouseLeave(e));
+                this.canvas.addEventListener('click', e => this.onClick(e));
+            }
+            
+            resize() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                this.canvas.width = (rect.width - 16) * dpr;
+                this.canvas.height = (rect.height - 40) * dpr;
+                this.canvas.style.width = (rect.width - 16) + 'px';
+                this.canvas.style.height = (rect.height - 40) + 'px';
+                this.ctx.scale(dpr, dpr);
+                this.width = rect.width - 16;
+                this.height = rect.height - 40;
+                // Only draw if fully initialized and generation is complete
+                if (this._isInitialized && generationComplete && this.draw) {
+                    this.draw();
+                }
+            }
+            
+            clear() {
+                this.ctx.fillStyle = '#0a0a0a';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+            }
+            
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: (e.clientX - rect.left) * (this.canvas.width / rect.width) / (window.devicePixelRatio || 1),
+                    y: (e.clientY - rect.top) * (this.canvas.height / rect.height) / (window.devicePixelRatio || 1)
+                };
+            }
+            
+            onClick(e) {
+                if (!this.isDragging && this.isInChartArea(this.getMousePos(e))) {
+                    this.handleClick(e);
+                }
+            }
+            
+            onMouseLeave() {
+                document.getElementById('tooltip').style.display = 'none';
+            }
+            
+            isInChartArea(pos) {
+                return true;
+            }
+            
+            handleClick(e) {
+                // Override in subclasses
+            }
+        }
+        
+        // Histogram implementation
+        class Histogram extends Chart {
+            constructor(canvasId, binData, label, formatter) {
+                super(canvasId);
+                this.margin = { top: 10, right: 10, bottom: 30, left: 45 };
+                this.binData = binData;
+                this.label = label;
+                this.formatter = formatter;
+            }
+            
+            draw() {
+                this.clear();
+                
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                const bins = this.binData.bins;
+                const barWidth = width / bins.length;
+                
+                // Calculate heights with optimized counting
+                const counts = new Uint32Array(bins.length);
+                const filteredCounts = new Uint32Array(bins.length);
+                
+                requestIdleCallback(() => {
+                    for (let i = 0; i < bins.length; i++) {
+                        const indices = bins[i];
+                        counts[i] = indices.length;
+                        let filtered = 0;
+                        for (let j = 0; j < indices.length; j++) {
+                            if (filteredIndices[indices[j]]) filtered++;
+                        }
+                        filteredCounts[i] = filtered;
+                    }
+                    
+                    const maxCount = Math.max(...counts);
+                    
+                    this.ctx.save();
+                    this.ctx.translate(this.margin.left, this.margin.top);
+                    
+                    // Draw bars
+                    for (let i = 0; i < bins.length; i++) {
+                        const x = i * barWidth;
+                        const h = (counts[i] / maxCount) * height;
+                        const fh = (filteredCounts[i] / maxCount) * height;
+                        
+                        // Background
+                        this.ctx.fillStyle = '#2a2a2a';
+                        this.ctx.fillRect(x, height - h, barWidth - 1, h);
+                        
+                        // Filtered
+                        this.ctx.fillStyle = '#4a9eff';
+                        this.ctx.fillRect(x, height - fh, barWidth - 1, fh);
+                    }
+                    
+                    // Draw selection
+                    if (this.selection) {
+                        this.ctx.fillStyle = 'rgba(255,255,255,0.08)';
+                        this.ctx.strokeStyle = '#feca57';
+                        this.ctx.lineWidth = 2;
+                        
+                        const x1 = this.selection[0] * barWidth;
+                        const x2 = (this.selection[1] + 1) * barWidth;
+                        
+                        this.ctx.fillRect(x1, 0, x2 - x1, height);
+                        this.ctx.strokeRect(x1, 0, x2 - x1, height);
+                    }
+                    
+                    // Axes
+                    this.ctx.strokeStyle = '#666';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, height);
+                    this.ctx.lineTo(width, height);
+                    this.ctx.stroke();
+                    
+                    // Y-axis
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, 0);
+                    this.ctx.lineTo(0, height);
+                    this.ctx.stroke();
+                    
+                    // Labels
+                    this.ctx.fillStyle = '#999';
+                    this.ctx.font = '11px -apple-system, sans-serif';
+                    this.ctx.textAlign = 'center';
+                    
+                    const step = Math.max(1, Math.floor(bins.length / 10));
+                    for (let i = 0; i <= bins.length; i += step) {
+                        const x = i * barWidth;
+                        const value = this.binData.min + i * this.binData.binSize;
+                        this.ctx.fillText(this.formatter(value), x, height + 15);
+                    }
+                    
+                    // Y-axis labels
+                    this.ctx.textAlign = 'right';
+                    const ySteps = 5;
+                    for (let i = 0; i <= ySteps; i++) {
+                        const y = height - (i * height / ySteps);
+                        const value = (i * maxCount / ySteps / 1000000).toFixed(1);
+                        this.ctx.fillText(value + 'M', -5, y + 3);
+                    }
+                    
+                    this.ctx.restore();
+                }, { timeout: 100 });
+            }
+            
+            isInChartArea(pos) {
+                return pos.x >= this.margin.left && 
+                       pos.x <= this.width - this.margin.right &&
+                       pos.y >= this.margin.top && 
+                       pos.y <= this.height - this.margin.bottom;
+            }
+            
+            onMouseDown(e) {
+                const pos = this.getMousePos(e);
+                if (!this.isInChartArea(pos)) return;
+                
+                const x = pos.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                const bin = Math.floor(x / (width / this.binData.bins.length));
+                
+                if (bin >= 0 && bin < this.binData.bins.length) {
+                    this.isDragging = true;
+                    this.dragStart = bin;
+                }
+            }
+            
+            onMouseMove(e) {
+                const pos = this.getMousePos(e);
+                
+                if (!this.isInChartArea(pos)) {
+                    document.getElementById('tooltip').style.display = 'none';
+                    return;
+                }
+                
+                const x = pos.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                
+                if (this.isDragging) {
+                    const bin = Math.floor(x / (width / this.binData.bins.length));
+                    if (bin >= 0 && bin < this.binData.bins.length) {
+                        this.selection = [Math.min(this.dragStart, bin), Math.max(this.dragStart, bin)];
+                        this.draw();
+                    }
+                }
+                
+                // Tooltip
+                const bin = Math.floor(x / (width / this.binData.bins.length));
+                if (bin >= 0 && bin < this.binData.bins.length) {
+                    let count = 0;
+                    const indices = this.binData.bins[bin];
+                    for (let i = 0; i < indices.length; i++) {
+                        if (filteredIndices[indices[i]]) count++;
+                    }
+                    
+                    const start = this.binData.min + bin * this.binData.binSize;
+                    const end = start + this.binData.binSize;
+                    
+                    const tooltip = document.getElementById('tooltip');
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = e.pageX + 10 + 'px';
+                    tooltip.style.top = e.pageY - 30 + 'px';
+                    tooltip.innerHTML = `${this.formatter(start)} - ${this.formatter(end)}<br>Count: ${count.toLocaleString()}`;
+                }
+            }
+            
+            onMouseUp() {
+                if (this.isDragging && this.selection) {
+                    const filterKey = this.label.toLowerCase();
+                    filters[filterKey] = [
+                        this.binData.min + this.selection[0] * this.binData.binSize,
+                        this.binData.min + (this.selection[1] + 1) * this.binData.binSize
+                    ];
+                    deferredApplyFilters();
+                }
+                this.isDragging = false;
+            }
+            
+            handleClick(e) {
+                this.reset();
+                const filterKey = this.label.toLowerCase();
+                filters[filterKey] = null;
+                deferredApplyFilters();
+            }
+            
+            reset() {
+                this.selection = null;
+                this.draw();
+            }
+        }
+        
+        // Time chart
+        class TimeChart extends Histogram {
+            constructor(canvasId) {
+                super(canvasId, binCache.time, 'time', v => {
+                    const h = Math.floor(v / 3600);
+                    return `${h}:00`;
+                });
+            }
+        }
+        
+        // Angle radial chart
+        class AngleChart extends Chart {
+            constructor(canvasId) {
+                super(canvasId);
+                this.mode = 'cat2';
+                this.updateLegend();
+            }
+            
+            updateLegend() {
+                const legend = document.getElementById('angleLegend');
+                legend.innerHTML = '';
+                
+                if (this.mode === 'cat2') {
+                    legend.innerHTML = `
+                        <div class="legend-item"><div class="legend-color" style="background:#48dbfb"></div>false</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#feca57"></div>true</div>
+                    `;
+                } else {
+                    legend.innerHTML = `
+                        <div class="legend-item"><div class="legend-color" style="background:#ff6b6b"></div>A</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#4ecdc4"></div>B</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#45b7d1"></div>C</div>
+                        <div class="legend-item"><div class="legend-color" style="background:#96ceb4"></div>D</div>
+                    `;
+                }
+            }
+            
+            draw() {
+                this.clear();
+                
+                const cx = this.width / 2;
+                const cy = this.height / 2;
+                const radius = Math.min(cx, cy) - 25;
+                const innerRadius = radius * 0.3;
+                
+                const bins = binCache.angle.bins;
+                const binSize = binCache.angle.binSize;
+                
+                // Calculate max for consistent bar height
+                let maxCount = 0;
+                for (let i = 0; i < bins.length; i++) {
+                    maxCount = Math.max(maxCount, bins[i].length);
+                }
+                
+                requestIdleCallback(() => {
+                    // Draw grid
+                    this.ctx.strokeStyle = '#333';
+                    this.ctx.lineWidth = 1;
+                    
+                    for (let angle = 0; angle < 360; angle += 30) {
+                        const rad = (angle - 90) * Math.PI / 180;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(cx + Math.cos(rad) * innerRadius, cy + Math.sin(rad) * innerRadius);
+                        this.ctx.lineTo(cx + Math.cos(rad) * radius, cy + Math.sin(rad) * radius);
+                        this.ctx.stroke();
+                    }
+                    
+                    for (let r = innerRadius; r <= radius; r += (radius - innerRadius) / 4) {
+                        this.ctx.beginPath();
+                        this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                        this.ctx.stroke();
+                    }
+                    
+                    // Draw segments
+                    for (let i = 0; i < bins.length; i++) {
+                        const startAngle = (i * binSize - 90) * Math.PI / 180;
+                        const endAngle = ((i + 1) * binSize - 90) * Math.PI / 180;
+                        
+                        let filtered = 0;
+                        const indices = bins[i];
+                        for (let j = 0; j < indices.length; j++) {
+                            if (filteredIndices[indices[j]]) filtered++;
+                        }
+                        
+                        if (filtered === 0) continue;
+                        
+                        const barHeight = (bins[i].length / maxCount) * (radius - innerRadius);
+                        
+                        if (this.mode === 'cat2') {
+                            const groups = [0, 0];
+                            for (let j = 0; j < indices.length; j++) {
+                                if (filteredIndices[indices[j]]) {
+                                    groups[data.category_2[indices[j]]]++;
+                                }
+                            }
+                            
+                            const total = filtered;
+                            let r = innerRadius;
+                            
+                            // False (0)
+                            if (groups[0] > 0) {
+                                this.ctx.fillStyle = '#48dbfb';
+                                this.ctx.beginPath();
+                                this.ctx.arc(cx, cy, r, startAngle, endAngle);
+                                this.ctx.arc(cx, cy, r + (groups[0] / total) * barHeight, endAngle, startAngle, true);
+                                this.ctx.closePath();
+                                this.ctx.fill();
+                                r += (groups[0] / total) * barHeight;
+                            }
+                            
+                            // True (1)
+                            if (groups[1] > 0) {
+                                this.ctx.fillStyle = '#feca57';
+                                this.ctx.beginPath();
+                                this.ctx.arc(cx, cy, r, startAngle, endAngle);
+                                this.ctx.arc(cx, cy, r + (groups[1] / total) * barHeight, endAngle, startAngle, true);
+                                this.ctx.closePath();
+                                this.ctx.fill();
+                            }
+                        } else {
+                            const groups = [0, 0, 0, 0];
+                            for (let j = 0; j < indices.length; j++) {
+                                if (filteredIndices[indices[j]]) {
+                                    groups[data.category_4[indices[j]]]++;
+                                }
+                            }
+                            
+                            const total = filtered;
+                            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4'];
+                            let r = innerRadius;
+                            
+                            for (let cat = 0; cat < 4; cat++) {
+                                if (groups[cat] > 0) {
+                                    this.ctx.fillStyle = colors[cat];
+                                    this.ctx.beginPath();
+                                    this.ctx.arc(cx, cy, r, startAngle, endAngle);
+                                    this.ctx.arc(cx, cy, r + (groups[cat] / total) * barHeight, endAngle, startAngle, true);
+                                    this.ctx.closePath();
+                                    this.ctx.fill();
+                                    r += (groups[cat] / total) * barHeight;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Draw selection
+                    if (this.selection) {
+                        this.ctx.fillStyle = 'rgba(255,255,255,0.08)';
+                        this.ctx.strokeStyle = '#feca57';
+                        this.ctx.lineWidth = 2;
+                        
+                        const startAngle = (this.selection[0] * binSize - 90) * Math.PI / 180;
+                        const endAngle = ((this.selection[1] + 1) * binSize - 90) * Math.PI / 180;
+                        
+                        this.ctx.beginPath();
+                        this.ctx.arc(cx, cy, innerRadius, startAngle, endAngle);
+                        this.ctx.arc(cx, cy, radius, endAngle, startAngle, true);
+                        this.ctx.closePath();
+                        this.ctx.fill();
+                        this.ctx.stroke();
+                    }
+                    
+                    // Labels
+                    this.ctx.fillStyle = '#999';
+                    this.ctx.font = '11px -apple-system, sans-serif';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    
+                    for (let angle = 0; angle < 360; angle += 30) {
+                        const rad = (angle - 90) * Math.PI / 180;
+                        const x = cx + Math.cos(rad) * (radius + 15);
+                        const y = cy + Math.sin(rad) * (radius + 15);
+                        this.ctx.fillText(angle + '°', x, y);
+                    }
+                }, { timeout: 100 });
+            }
+            
+            onMouseDown(e) {
+                const pos = this.getMousePos(e);
+                const cx = this.width / 2;
+                const cy = this.height / 2;
+                const dx = pos.x - cx;
+                const dy = pos.y - cy;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const radius = Math.min(cx, cy) - 25;
+                
+                if (dist >= radius * 0.3 && dist <= radius) {
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+                    const normalizedAngle = (angle + 360) % 360;
+                    const bin = Math.floor(normalizedAngle / binCache.angle.binSize);
+                    
+                    this.isDragging = true;
+                    this.dragStart = bin;
+                }
+            }
+            
+            onMouseMove(e) {
+                const pos = this.getMousePos(e);
+                const cx = this.width / 2;
+                const cy = this.height / 2;
+                const dx = pos.x - cx;
+                const dy = pos.y - cy;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const radius = Math.min(cx, cy) - 25;
+                
+                if (this.isDragging) {
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+                    const normalizedAngle = (angle + 360) % 360;
+                    const bin = Math.floor(normalizedAngle / binCache.angle.binSize);
+                    
+                    let start = this.dragStart;
+                    let end = bin;
+                    
+                    if (Math.abs(end - start) > binCache.angle.numBins / 2) {
+                        if (start < end) {
+                            start += binCache.angle.numBins;
+                        } else {
+                            end += binCache.angle.numBins;
+                        }
+                    }
+                    
+                    this.selection = [
+                        Math.min(start, end) % binCache.angle.numBins,
+                        Math.max(start, end) % binCache.angle.numBins
+                    ];
+                    
+                    this.draw();
+                }
+                
+                // Tooltip
+                if (dist >= radius * 0.3 && dist <= radius) {
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+                    const normalizedAngle = (angle + 360) % 360;
+                    const bin = Math.floor(normalizedAngle / binCache.angle.binSize);
+                    
+                    let count = 0;
+                    const indices = binCache.angle.bins[bin];
+                    for (let i = 0; i < indices.length; i++) {
+                        if (filteredIndices[indices[i]]) count++;
+                    }
+                    
+                    const tooltip = document.getElementById('tooltip');
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = e.pageX + 10 + 'px';
+                    tooltip.style.top = e.pageY - 30 + 'px';
+                    tooltip.innerHTML = `${(bin * binCache.angle.binSize).toFixed(0)}° - ${((bin + 1) * binCache.angle.binSize).toFixed(0)}°<br>Count: ${count.toLocaleString()}`;
+                } else {
+                    document.getElementById('tooltip').style.display = 'none';
+                }
+            }
+            
+            onMouseUp() {
+                if (this.isDragging && this.selection) {
+                    filters.angle = [
+                        this.selection[0] * binCache.angle.binSize,
+                        (this.selection[1] + 1) * binCache.angle.binSize
+                    ];
+                    deferredApplyFilters();
+                }
+                this.isDragging = false;
+            }
+            
+            handleClick(e) {
+                const pos = this.getMousePos(e);
+                const cx = this.width / 2;
+                const cy = this.height / 2;
+                const dist = Math.sqrt((pos.x - cx) ** 2 + (pos.y - cy) ** 2);
+                const radius = Math.min(cx, cy) - 25;
+                
+                if (dist >= radius * 0.3 && dist <= radius && this.selection) {
+                    this.reset();
+                    filters.angle = null;
+                    deferredApplyFilters();
+                }
+            }
+            
+            reset() {
+                this.selection = null;
+                this.draw();
+            }
+        }
+        
+        // Category chart
+        class CategoryChart extends Chart {
+            constructor(canvasId) {
+                super(canvasId);
+                this.margin = { top: 10, right: 10, bottom: 30, left: 45 };
+            }
+            
+            draw() {
+                this.clear();
+                
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                const categories = ['A', 'B', 'C', 'D'];
+                const barWidth = width / categories.length * 0.7;
+                const gap = width / categories.length * 0.3;
+                
+                // Count categories
+                const counts = [0, 0, 0, 0];
+                
+                requestIdleCallback(() => {
+                    for (let i = 0; i < N; i++) {
+                        if (filteredIndices[i]) {
+                            counts[data.category_4[i]]++;
+                        }
+                    }
+                    
+                    const maxCount = Math.max(...counts);
+                    
+                    this.ctx.save();
+                    this.ctx.translate(this.margin.left, this.margin.top);
+                    
+                    // Draw bars
+                    const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4'];
+                    
+                    categories.forEach((cat, i) => {
+                        const x = i * (barWidth + gap) + gap / 2;
+                        const h = (counts[i] / maxCount) * height;
+                        
+                        const isSelected = filters.category.size === 0 || filters.category.has(i);
+                        
+                        this.ctx.fillStyle = isSelected ? colors[i] : '#333';
+                        this.ctx.fillRect(x, height - h, barWidth, h);
+                        
+                        // Value label
+                        this.ctx.fillStyle = '#ccc';
+                        this.ctx.font = '12px -apple-system, sans-serif';
+                        this.ctx.textAlign = 'center';
+                        this.ctx.fillText((counts[i] / 1000000).toFixed(2) + 'M', x + barWidth / 2, height - h - 5);
+                        
+                        // Category label
+                        this.ctx.fillStyle = '#999';
+                        this.ctx.fillText(cat, x + barWidth / 2, height + 20);
+                    });
+                    
+                    // Axes
+                    this.ctx.strokeStyle = '#666';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, height);
+                    this.ctx.lineTo(width, height);
+                    this.ctx.stroke();
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, 0);
+                    this.ctx.lineTo(0, height);
+                    this.ctx.stroke();
+                    
+                    this.ctx.restore();
+                }, { timeout: 100 });
+            }
+            
+            onClick(e) {
+                const pos = this.getMousePos(e);
+                const x = pos.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                const barWidth = width / 4 * 0.7;
+                const gap = width / 4 * 0.3;
+                
+                for (let i = 0; i < 4; i++) {
+                    const barX = i * (barWidth + gap) + gap / 2;
+                    if (x >= barX && x <= barX + barWidth) {
+                        if (filters.category.has(i)) {
+                            filters.category.delete(i);
+                        } else {
+                            filters.category.add(i);
+                        }
+                        deferredApplyFilters();
+                        break;
+                    }
+                }
+            }
+            
+            onMouseMove(e) {
+                const pos = this.getMousePos(e);
+                const x = pos.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                const barWidth = width / 4 * 0.7;
+                const gap = width / 4 * 0.3;
+                
+                let hovering = false;
+                for (let i = 0; i < 4; i++) {
+                    const barX = i * (barWidth + gap) + gap / 2;
+                    if (x >= barX && x <= barX + barWidth) {
+                        hovering = true;
+                        this.canvas.style.cursor = 'pointer';
+                        break;
+                    }
+                }
+                
+                if (!hovering) {
+                    this.canvas.style.cursor = 'crosshair';
+                    document.getElementById('tooltip').style.display = 'none';
+                }
+            }
+            
+            reset() {
+                this.draw();
+            }
+        }
+        
+        // Deferred filter application for performance
+        let filterTimeout = null;
+        function deferredApplyFilters() {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(applyFilters, 50);
+        }
+        
+        // Apply filters with batching
+        function applyFilters() {
+            const startTime = performance.now();
+            let processed = 0;
+            
+            function processBatch() {
+                const batchEnd = Math.min(processed + IDLE_BATCH, N);
+                
+                for (let i = processed; i < batchEnd; i++) {
+                    let pass = true;
+                    
+                    if (filters.width && (data.width[i] < filters.width[0] || data.width[i] >= filters.width[1])) pass = false;
+                    if (pass && filters.height && (data.height[i] < filters.height[0] || data.height[i] >= filters.height[1])) pass = false;
+                    if (pass && filters.strength && (data.strength[i] < filters.strength[0] || data.strength[i] >= filters.strength[1])) pass = false;
+                    if (pass && filters.time && (data.timeSeconds[i] < filters.time[0] || data.timeSeconds[i] >= filters.time[1])) pass = false;
+                    if (pass && filters.angle) {
+                        const [start, end] = filters.angle;
+                        const angle = data.angle[i];
+                        if (start <= end) {
+                            if (angle < start || angle >= end) pass = false;
+                        } else {
+                            if (angle >= end && angle < start) pass = false;
+                        }
+                    }
+                    if (pass && filters.category.size > 0 && !filters.category.has(data.category_4[i])) pass = false;
+                    
+                    filteredIndices[i] = pass ? 1 : 0;
+                }
+                
+                processed = batchEnd;
+                
+                if (processed < N) {
+                    requestIdleCallback(processBatch, { timeout: 16 });
+                } else {
+                    const elapsed = performance.now() - startTime;
+                    console.log(`Filtered ${N.toLocaleString()} rows in ${elapsed.toFixed(0)}ms`);
+                    updateStats();
+                    updateAllCharts();
+                }
+            }
+            
+            requestIdleCallback(processBatch, { timeout: 16 });
+        }
+        
+        // Update statistics
+        function updateStats() {
+            let count = 0;
+            let widthSum = 0;
+            let trueCount = 0;
+            
+            for (let i = 0; i < N; i++) {
+                if (filteredIndices[i]) {
+                    count++;
+                    widthSum += data.width[i];
+                    if (data.category_2[i] === 1) trueCount++;
+                }
+            }
+            
+            document.getElementById('filteredCount').textContent = count.toLocaleString();
+            document.getElementById('percentFiltered').textContent = Math.round(count / N * 100) + '%';
+            document.getElementById('meanWidth').textContent = count > 0 ? (widthSum / count).toFixed(1) : '-';
+            document.getElementById('percentTrue').textContent = count > 0 ? Math.round(trueCount / count * 100) + '%' : '-';
+            
+            // Mini dashboard
+            document.getElementById('miniFiltered').textContent = (count / 1000000).toFixed(1) + 'M';
+            document.getElementById('miniPercent').textContent = Math.round(count / N * 100) + '%';
+            
+            let strengthSum = 0;
+            for (let i = 0; i < N; i++) {
+                if (filteredIndices[i]) {
+                    strengthSum += data.strength[i];
+                }
+            }
+            document.getElementById('miniStrength').textContent = count > 0 ? (strengthSum / count).toFixed(1) : '-';
+        }
+        
+        // Update all charts
+        function updateAllCharts() {
+            Object.values(charts).forEach(chart => chart.draw());
+        }
+        
+        // Reset all filters
+        function resetAll() {
+            filters = { width: null, height: null, angle: null, time: null, strength: null, category: new Set() };
+            filteredIndices.fill(1);
+            
+            Object.values(charts).forEach(chart => chart.reset());
+            updateStats();
+            updateAllCharts();
+        }
+        
+        // Update angle chart mode
+        function updateAngleChart() {
+            const select = document.getElementById('angleMode');
+            charts.angle.mode = select.value;
+            charts.angle.updateLegend();
+            charts.angle.draw();
+        }
+        
+        // Export CSV with streaming
+        function exportCSV() {
+            const categories = ['A', 'B', 'C', 'D'];
+            const chunks = [];
+            chunks.push('good_time,width,height,angle,strength,category_4,category_2\n');
+            
+            let count = 0;
+            let chunk = '';
+            
+            for (let i = 0; i < N; i++) {
+                if (filteredIndices[i]) {
+                    chunk += `${data.good_time[i]},${data.width[i].toFixed(2)},${data.height[i].toFixed(2)},${data.angle[i].toFixed(2)},${data.strength[i].toFixed(2)},${categories[data.category_4[i]]},${data.category_2[i] === 1}\n`;
+                    count++;
+                    
+                    if (count % 10000 === 0) {
+                        chunks.push(chunk);
+                        chunk = '';
+                    }
+                }
+            }
+            
+            if (chunk) chunks.push(chunk);
+            
+            const blob = new Blob(chunks, { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `filtered_data_${count}_rows.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Save snapshot
+        function saveSnapshot() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const mainGrid = document.getElementById('mainGrid');
+            const rect = mainGrid.getBoundingClientRect();
+            
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const panels = mainGrid.querySelectorAll('.panel');
+            panels.forEach((panel, i) => {
+                const panelRect = panel.getBoundingClientRect();
+                const chartCanvas = panel.querySelector('canvas');
+                const x = panelRect.left - rect.left;
+                const y = panelRect.top - rect.top;
+                
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(x, y, panelRect.width, panelRect.height);
+                
+                if (chartCanvas) {
+                    ctx.drawImage(chartCanvas, x + 8, y + 32, chartCanvas.width / (window.devicePixelRatio || 1), chartCanvas.height / (window.devicePixelRatio || 1));
+                }
+                
+                ctx.fillStyle = '#ccc';
+                ctx.font = '13px -apple-system, sans-serif';
+                ctx.fillText(panel.querySelector('.panel-title').textContent, x + 8, y + 20);
+            });
+            
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `dashboard_snapshot_${new Date().toISOString().slice(0,10)}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+        
+        // Toggle mini dashboard
+        function toggleMini() {
+            const mainGrid = document.getElementById('mainGrid');
+            const miniDashboard = document.getElementById('miniDashboard');
+            
+            if (mainGrid.style.display === 'none') {
+                mainGrid.style.display = 'grid';
+                miniDashboard.style.display = 'none';
+            } else {
+                mainGrid.style.display = 'none';
+                miniDashboard.style.display = 'grid';
+                updateStats();
+            }
+        }
+        
+        // Hide tooltip on mouse leave
+        document.addEventListener('mouseleave', () => {
+            document.getElementById('tooltip').style.display = 'none';
+        });
+        
+        // Start generation
+        generateData();
+    </script>
+</body>
+</html>

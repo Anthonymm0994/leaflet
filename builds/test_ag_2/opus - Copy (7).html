@@ -1,0 +1,31 @@
+                        chart.selection[0] * binCache.angle.binSize,
+                        (chart.selection[1] + 1) * binCache.angle.binSize
+                    ];
+                } else {
+                    filters.angle = null;
+                }
+            } else if (chart instanceof CategoryChart) {
+                chart.invertSelection();
+            }
+        });
+        
+        applyFilters();
+    }
+    
+    // Update angle mode
+    function updateAngleChart() {
+        const select = document.getElementById('angleMode');
+        charts.angle.mode = select.value;
+        charts.angle.draw();
+    }
+    
+    // Hide tooltip on document mouse leave
+    document.addEventListener('mouseleave', () => {
+        document.getElementById('tooltip').style.display = 'none';
+    });
+    
+    // Start
+    generateData();
+    </script>
+</body>
+</html>
