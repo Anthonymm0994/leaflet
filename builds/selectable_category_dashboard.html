@@ -970,8 +970,11 @@
             
             drawCat4(width, height) {
                 const categories = ['A', 'B', 'C', 'D'];
-                const barWidth = width / categories.length * 0.7;
-                const gap = width / categories.length * 0.3;
+                // Consistent bar calculation
+                const totalBarWidth = width * 0.8; // 80% of width for bars
+                const totalGapWidth = width * 0.2; // 20% for gaps
+                const barWidth = totalBarWidth / categories.length;
+                const gapWidth = totalGapWidth / (categories.length + 1);
                 
                 // Count categories with sampling
                 const counts = [0, 0, 0, 0];
@@ -1006,7 +1009,7 @@
                 const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4'];
                 
                 categories.forEach((cat, i) => {
-                    const x = i * (barWidth + gap) + gap / 2;
+                    const x = gapWidth + i * (barWidth + gapWidth);
                     const h = (totalCounts[i] / maxCount) * height;
                     const fh = (counts[i] / maxCount) * height;
                     
@@ -1057,8 +1060,11 @@
             
             drawCat2(width, height) {
                 const categories = ['False', 'True'];
-                const barWidth = width / categories.length * 0.7;
-                const gap = width / categories.length * 0.3;
+                // Use same bar calculation as cat4 but with 2 categories
+                const totalBarWidth = width * 0.8; // 80% of width for bars
+                const totalGapWidth = width * 0.2; // 20% for gaps
+                const barWidth = totalBarWidth / categories.length;
+                const gapWidth = totalGapWidth / (categories.length + 1);
                 
                 // Count categories with sampling
                 const counts = [0, 0];
@@ -1093,7 +1099,7 @@
                 const colors = ['#48dbfb', '#feca57'];
                 
                 categories.forEach((cat, i) => {
-                    const x = i * (barWidth + gap) + gap / 2 + width / 4; // Center the two bars
+                    const x = gapWidth + i * (barWidth + gapWidth); // Consistent spacing
                     const h = (totalCounts[i] / maxCount) * height;
                     const fh = (counts[i] / maxCount) * height;
                     
@@ -1183,14 +1189,15 @@
                 const height = this.height - this.margin.top - this.margin.bottom;
                 
                 const numCats = this.mode === 'cat4' ? 4 : 2;
-                const barWidth = width / numCats * 0.7;
-                const gap = width / numCats * 0.3;
-                const offset = this.mode === 'cat2' ? width / 4 : 0;
+                const totalBarWidth = width * 0.8;
+                const totalGapWidth = width * 0.2;
+                const barWidth = totalBarWidth / numCats;
+                const gapWidth = totalGapWidth / (numCats + 1);
                 
                 // Check which bar was clicked
                 let clickedBar = -1;
                 for (let i = 0; i < numCats; i++) {
-                    const barX = i * (barWidth + gap) + gap / 2 + offset;
+                    const barX = gapWidth + i * (barWidth + gapWidth);
                     if (x >= barX && x <= barX + barWidth) {
                         clickedBar = i;
                         break;
@@ -1235,13 +1242,14 @@
                 const x = pos.x - this.margin.left;
                 const width = this.width - this.margin.left - this.margin.right;
                 const numCats = this.mode === 'cat4' ? 4 : 2;
-                const barWidth = width / numCats * 0.7;
-                const gap = width / numCats * 0.3;
-                const offset = this.mode === 'cat2' ? width / 4 : 0;
+                const totalBarWidth = width * 0.8;
+                const totalGapWidth = width * 0.2;
+                const barWidth = totalBarWidth / numCats;
+                const gapWidth = totalGapWidth / (numCats + 1);
                 
                 let newHoveredBar = -1;
                 for (let i = 0; i < numCats; i++) {
-                    const barX = i * (barWidth + gap) + gap / 2 + offset;
+                    const barX = gapWidth + i * (barWidth + gapWidth);
                     if (x >= barX && x <= barX + barWidth) {
                         newHoveredBar = i;
                         this.canvas.style.cursor = 'pointer';
@@ -1455,6 +1463,8 @@
                 cat4Stats.forEach(el => el.style.display = 'block');
             }
             
+            // Force a complete redraw by resizing first
+            charts.category.resize();
             charts.category.draw();
             applyFilters();
         }
