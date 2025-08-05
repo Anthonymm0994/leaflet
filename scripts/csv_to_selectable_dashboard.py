@@ -230,19 +230,6 @@ def create_html_template(data, row_count, compress=False):
     # Create the data loading section
     data_section = f'''
         // Data embedding section
-        const BATCH_SIZE = 100000;
-        
-        let data = {{
-            good_time: null,
-            width: null,
-            height: null,
-            angle: null,
-            strength: null,
-            category_4: null,
-            category_2: null,
-            timeSeconds: null
-        }};
-        
         // Embedded data
         const embeddedData = {{
             width: "{encoded_data['width']}",
@@ -284,7 +271,8 @@ def create_html_template(data, row_count, compress=False):
                 data.good_time[i] = `${{h.toString().padStart(2,'0')}}:${{m.toString().padStart(2,'0')}}:${{s.toString().padStart(2,'0')}}.${{ms.toString().padStart(3,'0')}}`;
             }}
             
-            // Initialize filtered indices
+            // Initialize filtered indices (already defined in template)
+            filteredIndices = new Uint8Array(ROWS);
             filteredIndices.fill(1);
             
             const elapsed = performance.now() - startTime;
