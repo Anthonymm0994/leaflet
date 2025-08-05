@@ -292,21 +292,34 @@ def create_html_template(data, row_count, compress=False):
     # Replace the ROWS constant
     template = template.replace('const ROWS = 10000000;', f'const ROWS = {row_count};')
     
-    # Find and replace the generateData function
-    gen_data_start = template.find('// Generate 10M rows')
-    if gen_data_start == -1:
-        gen_data_start = template.find('function generateData()')
+    # Find and replace ONLY the generateData function and its call
+    # First, find the generateData function
+    gen_func_start = template.find('function generateData()')
+    if gen_func_start != -1:
+        # Find the end of the function (closing brace)
+        brace_count = 0
+        i = template.find('{', gen_func_start)
+        start_pos = i
+        while i < len(template) and brace_count >= 0:
+            if template[i] == '{':
+                brace_count += 1
+            elif template[i] == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    # Found the closing brace of generateData
+                    gen_func_end = i + 1
+                    break
+            i += 1
+        
+        # Remove the generateData function
+        template = template[:gen_func_start] + template[gen_func_end:]
     
-    if gen_data_start != -1:
-        # Find the end of the generateData call
-        gen_data_end = template.find('generateData();')
-        if gen_data_end != -1:
-            # Find the actual end of the function call
-            gen_data_end = template.find('\n', gen_data_end) + 1
-            # Replace everything from generateData to its call
-            template = template[:gen_data_start] + data_section + template[gen_data_end:]
+    # Now replace the generateData() call with our data loading
+    gen_call = template.find('generateData();')
+    if gen_call != -1:
+        template = template[:gen_call] + data_section + template[gen_call + len('generateData();'):]
     else:
-        print("Warning: Could not find generateData function to replace")
+        print("Warning: Could not find generateData() call to replace")
     
     # Update title and header
     template = template.replace('10M Row Data Explorer', f'{row_count:,} Row Data Explorer')
