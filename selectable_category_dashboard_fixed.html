@@ -18,10 +18,10 @@
         button { background: #4a9eff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
         button:hover { background: #3a8eef; }
         button:active { transform: scale(0.95); }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8px; height: calc(100% - 52px); }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8px; height: calc(100% - 140px); }
         .panel { background: #1a1a1a; border-radius: 4px; padding: 8px; position: relative; }
         .panel-title { font-size: 13px; margin-bottom: 4px; font-weight: 500; }
-        canvas { position: absolute; top: 28px; left: 8px; right: 8px; bottom: 8px; cursor: crosshair; }
+        canvas { position: absolute; top: 28px; left: 8px; right: 8px; bottom: 20px; cursor: crosshair; }
         select { background: #333; color: #e0e0e0; border: 1px solid #555; padding: 3px 6px; border-radius: 3px; position: absolute; top: 4px; right: 8px; font-size: 11px; }
         #tooltip { position: fixed; background: rgba(0,0,0,0.95); padding: 6px 10px; border-radius: 3px; font-size: 11px; pointer-events: none; display: none; z-index: 1000; border: 1px solid #333; }
         .mini-mode { display: none; }
@@ -109,6 +109,30 @@
             <div class="range-item">
                 <span class="range-label">Height:</span>
                 <span class="range-value" id="heightRange">0.00 - 10.00</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Cat_4 A:</span>
+                <span class="range-value" id="cat4ARange">25.0%</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Cat_4 B:</span>
+                <span class="range-value" id="cat4BRange">25.0%</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Cat_4 C:</span>
+                <span class="range-value" id="cat4CRange">25.0%</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Cat_4 D:</span>
+                <span class="range-value" id="cat4DRange">25.0%</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Cat_2 False:</span>
+                <span class="range-value" id="cat2FalseRange">50.0%</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Cat_2 True:</span>
+                <span class="range-value" id="cat2TrueRange">50.0%</span>
             </div>
         </div>
         
@@ -471,7 +495,7 @@
                 this.binData = binData;
                 this.label = label;
                 this.formatter = formatter;
-                this.margin = { top: 10, right: 10, bottom: 30, left: 50 };
+                this.margin = { top: 10, right: 10, bottom: 40, left: 50 };
                 this.isInteracting = false;
             }
             
@@ -993,7 +1017,7 @@
         class CategoryChart extends Chart {
             constructor(canvasId) {
                 super(canvasId);
-                this.margin = { top: 20, right: 10, bottom: 30, left: 60 };
+                this.margin = { top: 20, right: 10, bottom: 40, left: 60 };
                 this.hoveredBar = -1;
                 this.selectedCategories = new Set();
                 this.counts = [0, 0, 0, 0]; // Store counts for tooltips
@@ -1087,11 +1111,7 @@
                         this.ctx.strokeRect(x, height - h, barWidth, h);
                     }
                     
-                    // Calculate percentage for cat4
-                    const totalFiltered = counts.reduce((sum, count) => sum + count, 0);
-                    const percentage = totalFiltered > 0 ? (counts[i] / totalFiltered * 100).toFixed(1) : '0.0';
-                    
-                    // Value label - show count and percentage
+                    // Value label - show count
                     this.ctx.fillStyle = '#ccc';
                     this.ctx.font = '11px -apple-system, sans-serif';
                     this.ctx.textAlign = 'center';
@@ -1099,11 +1119,6 @@
                                     counts[i] >= 1000 ? `${(counts[i]/1000).toFixed(0)}k` : 
                                     counts[i].toFixed(0);
                     this.ctx.fillText(countStr, x + barWidth / 2, height - fh - 5);
-                    
-                    // Percentage label for cat4
-                    this.ctx.fillStyle = '#4a9eff';
-                    this.ctx.font = '10px -apple-system, sans-serif';
-                    this.ctx.fillText(`${percentage}%`, x + barWidth / 2, height - fh - 18);
                     
                     // Category label
                     this.ctx.fillStyle = '#888';
@@ -1186,11 +1201,7 @@
                         this.ctx.strokeRect(x, height - h, barWidth, h);
                     }
                     
-                    // Calculate percentage for cat2
-                    const totalFiltered = counts.reduce((sum, count) => sum + count, 0);
-                    const percentage = totalFiltered > 0 ? (counts[i] / totalFiltered * 100).toFixed(1) : '0.0';
-                    
-                    // Value label - show count and percentage
+                    // Value label - show count
                     this.ctx.fillStyle = '#ccc';
                     this.ctx.font = '11px -apple-system, sans-serif';
                     this.ctx.textAlign = 'center';
@@ -1198,11 +1209,6 @@
                                     counts[i] >= 1000 ? `${(counts[i]/1000).toFixed(0)}k` : 
                                     counts[i].toFixed(0);
                     this.ctx.fillText(countStr, x + barWidth / 2, height - fh - 5);
-                    
-                    // Percentage label for cat2
-                    this.ctx.fillStyle = '#4a9eff';
-                    this.ctx.font = '10px -apple-system, sans-serif';
-                    this.ctx.fillText(`${percentage}%`, x + barWidth / 2, height - fh - 18);
                     
                     // Category label
                     this.ctx.fillStyle = '#888';
@@ -1453,12 +1459,46 @@
             const formatAngle = (angle) => `${angle.toFixed(0)}°`;
             const formatNumber = (num) => num.toFixed(2);
             
+            // Calculate category percentages
+            let cat4Counts = [0, 0, 0, 0];
+            let cat2True = 0, cat2False = 0;
+            let totalFiltered = 0;
+            
+            for (let i = 0; i < currentRows; i += sampleStep) {
+                if (filteredIndices[i]) {
+                    totalFiltered++;
+                    cat4Counts[data.category_4[i]]++;
+                    if (data.category_2[i]) cat2True++; else cat2False++;
+                }
+            }
+            
+            // Scale up sampled counts
+            totalFiltered *= sampleStep;
+            for (let i = 0; i < 4; i++) cat4Counts[i] *= sampleStep;
+            cat2True *= sampleStep;
+            cat2False *= sampleStep;
+            
             if (hasFilteredData) {
                 document.getElementById('timeRange').textContent = `${formatTime(timeMin)} - ${formatTime(timeMax)}`;
                 document.getElementById('strengthRange').textContent = `${formatNumber(strengthMin)} - ${formatNumber(strengthMax)}`;
                 document.getElementById('angleRange').textContent = `${formatAngle(angleMin)} - ${formatAngle(angleMax)}`;
                 document.getElementById('widthRange').textContent = `${formatNumber(widthMin)} - ${formatNumber(widthMax)}`;
                 document.getElementById('heightRange').textContent = `${formatNumber(heightMin)} - ${formatNumber(heightMax)}`;
+                
+                // Update category percentages
+                const cat4APercent = totalFiltered > 0 ? (cat4Counts[0] / totalFiltered * 100).toFixed(1) : '0.0';
+                const cat4BPercent = totalFiltered > 0 ? (cat4Counts[1] / totalFiltered * 100).toFixed(1) : '0.0';
+                const cat4CPercent = totalFiltered > 0 ? (cat4Counts[2] / totalFiltered * 100).toFixed(1) : '0.0';
+                const cat4DPercent = totalFiltered > 0 ? (cat4Counts[3] / totalFiltered * 100).toFixed(1) : '0.0';
+                const cat2FalsePercent = totalFiltered > 0 ? (cat2False / totalFiltered * 100).toFixed(1) : '0.0';
+                const cat2TruePercent = totalFiltered > 0 ? (cat2True / totalFiltered * 100).toFixed(1) : '0.0';
+                
+                document.getElementById('cat4ARange').textContent = `${cat4APercent}%`;
+                document.getElementById('cat4BRange').textContent = `${cat4BPercent}%`;
+                document.getElementById('cat4CRange').textContent = `${cat4CPercent}%`;
+                document.getElementById('cat4DRange').textContent = `${cat4DPercent}%`;
+                document.getElementById('cat2FalseRange').textContent = `${cat2FalsePercent}%`;
+                document.getElementById('cat2TrueRange').textContent = `${cat2TruePercent}%`;
             } else {
                 // No filtered data, show full range
                 document.getElementById('timeRange').textContent = '00:00 - 23:59';
@@ -1466,6 +1506,14 @@
                 document.getElementById('angleRange').textContent = '0° - 360°';
                 document.getElementById('widthRange').textContent = '0.00 - 200.00';
                 document.getElementById('heightRange').textContent = '0.00 - 10.00';
+                
+                // Default category percentages (25% each for cat4, 50% each for cat2)
+                document.getElementById('cat4ARange').textContent = '25.0%';
+                document.getElementById('cat4BRange').textContent = '25.0%';
+                document.getElementById('cat4CRange').textContent = '25.0%';
+                document.getElementById('cat4DRange').textContent = '25.0%';
+                document.getElementById('cat2FalseRange').textContent = '50.0%';
+                document.getElementById('cat2TrueRange').textContent = '50.0%';
             }
         }
         
