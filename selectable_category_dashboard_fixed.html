@@ -1413,6 +1413,7 @@
         
         // Calculate and update ranges for filtered data
         function updateRanges() {
+            // Calculate actual min/max from entire dataset
             let timeMin = Infinity, timeMax = -Infinity;
             let strengthMin = Infinity, strengthMax = -Infinity;
             let angleMin = Infinity, angleMax = -Infinity;
@@ -1423,29 +1424,34 @@
             const sampleStep = Math.max(1, Math.floor(currentRows / 100000));
             let hasFilteredData = false;
             
+            // First pass: calculate actual min/max from entire dataset
+            for (let i = 0; i < currentRows; i += sampleStep) {
+                // Time range
+                if (data.timeSeconds[i] < timeMin) timeMin = data.timeSeconds[i];
+                if (data.timeSeconds[i] > timeMax) timeMax = data.timeSeconds[i];
+                
+                // Strength range
+                if (data.strength[i] < strengthMin) strengthMin = data.strength[i];
+                if (data.strength[i] > strengthMax) strengthMax = data.strength[i];
+                
+                // Angle range
+                if (data.angle[i] < angleMin) angleMin = data.angle[i];
+                if (data.angle[i] > angleMax) angleMax = data.angle[i];
+                
+                // Width range
+                if (data.width[i] < widthMin) widthMin = data.width[i];
+                if (data.width[i] > widthMax) widthMax = data.width[i];
+                
+                // Height range
+                if (data.height[i] < heightMin) heightMin = data.height[i];
+                if (data.height[i] > heightMax) heightMax = data.height[i];
+            }
+            
+            // Check if we have any filtered data
             for (let i = 0; i < currentRows; i += sampleStep) {
                 if (filteredIndices[i]) {
                     hasFilteredData = true;
-                    
-                    // Time range
-                    if (data.timeSeconds[i] < timeMin) timeMin = data.timeSeconds[i];
-                    if (data.timeSeconds[i] > timeMax) timeMax = data.timeSeconds[i];
-                    
-                    // Strength range
-                    if (data.strength[i] < strengthMin) strengthMin = data.strength[i];
-                    if (data.strength[i] > strengthMax) strengthMax = data.strength[i];
-                    
-                    // Angle range
-                    if (data.angle[i] < angleMin) angleMin = data.angle[i];
-                    if (data.angle[i] > angleMax) angleMax = data.angle[i];
-                    
-                    // Width range
-                    if (data.width[i] < widthMin) widthMin = data.width[i];
-                    if (data.width[i] > widthMax) widthMax = data.width[i];
-                    
-                    // Height range
-                    if (data.height[i] < heightMin) heightMin = data.height[i];
-                    if (data.height[i] > heightMax) heightMax = data.height[i];
+                    break;
                 }
             }
             
@@ -1478,14 +1484,15 @@
             cat2True *= sampleStep;
             cat2False *= sampleStep;
             
+            // Always show actual min/max values from the dataset
+            document.getElementById('timeRange').textContent = `${formatTime(timeMin)} - ${formatTime(timeMax)}`;
+            document.getElementById('strengthRange').textContent = `${formatNumber(strengthMin)} - ${formatNumber(strengthMax)}`;
+            document.getElementById('angleRange').textContent = `${formatAngle(angleMin)} - ${formatAngle(angleMax)}`;
+            document.getElementById('widthRange').textContent = `${formatNumber(widthMin)} - ${formatNumber(widthMax)}`;
+            document.getElementById('heightRange').textContent = `${formatNumber(heightMin)} - ${formatNumber(heightMax)}`;
+            
+            // Update category percentages based on filtered data
             if (hasFilteredData) {
-                document.getElementById('timeRange').textContent = `${formatTime(timeMin)} - ${formatTime(timeMax)}`;
-                document.getElementById('strengthRange').textContent = `${formatNumber(strengthMin)} - ${formatNumber(strengthMax)}`;
-                document.getElementById('angleRange').textContent = `${formatAngle(angleMin)} - ${formatAngle(angleMax)}`;
-                document.getElementById('widthRange').textContent = `${formatNumber(widthMin)} - ${formatNumber(widthMax)}`;
-                document.getElementById('heightRange').textContent = `${formatNumber(heightMin)} - ${formatNumber(heightMax)}`;
-                
-                // Update category percentages
                 const cat4APercent = totalFiltered > 0 ? (cat4Counts[0] / totalFiltered * 100).toFixed(1) : '0.0';
                 const cat4BPercent = totalFiltered > 0 ? (cat4Counts[1] / totalFiltered * 100).toFixed(1) : '0.0';
                 const cat4CPercent = totalFiltered > 0 ? (cat4Counts[2] / totalFiltered * 100).toFixed(1) : '0.0';
@@ -1500,14 +1507,7 @@
                 document.getElementById('cat2FalseRange').textContent = `${cat2FalsePercent}%`;
                 document.getElementById('cat2TrueRange').textContent = `${cat2TruePercent}%`;
             } else {
-                // No filtered data, show full range
-                document.getElementById('timeRange').textContent = '00:00 - 23:59';
-                document.getElementById('strengthRange').textContent = '0.00 - 100.00';
-                document.getElementById('angleRange').textContent = '0° - 360°';
-                document.getElementById('widthRange').textContent = '0.00 - 200.00';
-                document.getElementById('heightRange').textContent = '0.00 - 10.00';
-                
-                // Default category percentages (25% each for cat4, 50% each for cat2)
+                // No filtered data, show default category percentages
                 document.getElementById('cat4ARange').textContent = '25.0%';
                 document.getElementById('cat4BRange').textContent = '25.0%';
                 document.getElementById('cat4CRange').textContent = '25.0%';
