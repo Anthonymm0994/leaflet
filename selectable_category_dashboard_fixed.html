@@ -33,6 +33,35 @@
         #statsPanel div { margin-bottom: 4px; }
         #statsPanel strong { color: #4a9eff; margin-left: 4px; }
         .cat2-stats { display: none; }
+        .range-display { 
+            background: #1a1a1a; 
+            padding: 12px 16px; 
+            border-radius: 4px; 
+            margin-bottom: 8px;
+            display: flex; 
+            gap: 24px; 
+            flex-wrap: wrap;
+        }
+        .mini-mode .range-display {
+            display: none;
+        }
+        .range-item { 
+            display: flex; 
+            flex-direction: column; 
+            min-width: 120px;
+        }
+        .range-label { 
+            font-size: 11px; 
+            color: #888; 
+            margin-bottom: 2px; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .range-value { 
+            font-size: 13px; 
+            color: #4a9eff; 
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -57,6 +86,29 @@
                 <button onclick="resetAll()">🔄 Reset</button>
                 <button onclick="exportCSV()">💾 CSV</button>
                 <button onclick="saveSnapshot()">📷 Snapshot</button>
+            </div>
+        </div>
+        
+        <div class="range-display">
+            <div class="range-item">
+                <span class="range-label">Time:</span>
+                <span class="range-value" id="timeRange">00:00 - 23:59</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Strength:</span>
+                <span class="range-value" id="strengthRange">0.00 - 100.00</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Angle:</span>
+                <span class="range-value" id="angleRange">0° - 360°</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Width:</span>
+                <span class="range-value" id="widthRange">0.00 - 200.00</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Height:</span>
+                <span class="range-value" id="heightRange">0.00 - 10.00</span>
             </div>
         </div>
         
@@ -261,42 +313,35 @@
         
         // Pre-bin data for performance
         function prebinData() {
-            if (miniMode) {
-                // In mini mode, calculate actual min/max from current data
-                let widthMin = Infinity, widthMax = -Infinity;
-                let heightMin = Infinity, heightMax = -Infinity;
-                let strengthMin = Infinity, strengthMax = -Infinity;
-                let timeMin = Infinity, timeMax = -Infinity;
-                
-                for (let i = 0; i < data.width.length; i++) {
-                    if (data.width[i] < widthMin) widthMin = data.width[i];
-                    if (data.width[i] > widthMax) widthMax = data.width[i];
-                    if (data.height[i] < heightMin) heightMin = data.height[i];
-                    if (data.height[i] > heightMax) heightMax = data.height[i];
-                    if (data.strength[i] < strengthMin) strengthMin = data.strength[i];
-                    if (data.strength[i] > strengthMax) strengthMax = data.strength[i];
-                    if (data.timeSeconds[i] < timeMin) timeMin = data.timeSeconds[i];
-                    if (data.timeSeconds[i] > timeMax) timeMax = data.timeSeconds[i];
-                }
-                
-                // Add small padding to ensure all values fit within bins
-                const widthRange = widthMax - widthMin;
-                const heightRange = heightMax - heightMin;
-                const strengthRange = strengthMax - strengthMin;
-                const timeRange = timeMax - timeMin;
-                
-                // Use exact ranges - no padding on x-axis
-                binCache.width = binData(data.width, widthMin, widthMax, 100);
-                binCache.height = binData(data.height, heightMin, heightMax, 100);
-                binCache.strength = binData(data.strength, strengthMin, strengthMax, 100);
-                binCache.time = binData(data.timeSeconds, timeMin, timeMax, 96);
-            } else {
-                // Normal mode - use fixed ranges
-                binCache.width = binData(data.width, 1, 200, 100);
-                binCache.height = binData(data.height, 0.2, 4.8, 100);
-                binCache.strength = binData(data.strength, 0, 100, 100);
-                binCache.time = binData(data.timeSeconds, 0, 86400, 96); // 24 hours in seconds
+            // In mini mode, calculate actual min/max from current data
+            let widthMin = Infinity, widthMax = -Infinity;
+            let heightMin = Infinity, heightMax = -Infinity;
+            let strengthMin = Infinity, strengthMax = -Infinity;
+            let timeMin = Infinity, timeMax = -Infinity;
+            
+            for (let i = 0; i < data.width.length; i++) {
+                if (data.width[i] < widthMin) widthMin = data.width[i];
+                if (data.width[i] > widthMax) widthMax = data.width[i];
+                if (data.height[i] < heightMin) heightMin = data.height[i];
+                if (data.height[i] > heightMax) heightMax = data.height[i];
+                if (data.strength[i] < strengthMin) strengthMin = data.strength[i];
+                if (data.strength[i] > strengthMax) strengthMax = data.strength[i];
+                if (data.timeSeconds[i] < timeMin) timeMin = data.timeSeconds[i];
+                if (data.timeSeconds[i] > timeMax) timeMax = data.timeSeconds[i];
             }
+            
+            // Add small padding to ensure all values fit within bins
+            const widthRange = widthMax - widthMin;
+            const heightRange = heightMax - heightMin;
+            const strengthRange = strengthMax - strengthMin;
+            const timeRange = timeMax - timeMin;
+            
+            // Use exact ranges - no padding on x-axis
+            binCache.width = binData(data.width, widthMin, widthMax, 50);
+            binCache.height = binData(data.height, heightMin, heightMax, 50);
+            binCache.strength = binData(data.strength, strengthMin, strengthMax, 50);
+            binCache.time = binData(data.timeSeconds, timeMin, timeMax, 50);
+            
             binCache.angle = binAngleData();
         }
         
@@ -305,13 +350,15 @@
             const binSize = (max - min) / numBins;
             
             for (let i = 0; i < arr.length; i++) {
-                const bin = Math.min(numBins - 1, Math.floor((arr[i] - min) / binSize));
+                const bin = Math.floor((arr[i] - min) / binSize);
+
+                // Only clamp to prevent out-of-bounds, don't force into last bin
                 if (bin >= 0 && bin < numBins) bins[bin].push(i);
             }
-            
+    
             return { bins, binSize, min, max };
         }
-        
+
         function binAngleData() {
             const numBins = 120;
             const bins = new Array(numBins).fill(null).map(() => []);
@@ -333,15 +380,16 @@
         
         // Initialize all charts
         function initCharts() {
-            charts.width = new Histogram('widthCanvas', binCache.width, 'Width', v => v.toFixed(0));
-            charts.height = new Histogram('heightCanvas', binCache.height, 'Height', v => v.toFixed(1));
+            charts.width = new Histogram('widthCanvas', binCache.width, 'Width', v => v.toFixed(2));
+            charts.height = new Histogram('heightCanvas', binCache.height, 'Height', v => v.toFixed(2));
             charts.angle = new AngleChart('angleCanvas');
             charts.time = new TimeChart('timeCanvas');
-            charts.strength = new Histogram('strengthCanvas', binCache.strength, 'Strength', v => v.toFixed(0));
+            charts.strength = new Histogram('strengthCanvas', binCache.strength, 'Strength', v => v.toFixed(2));
             charts.category = new CategoryChart('categoryCanvas');
             
             updateAllCharts();
             updateStats();
+            updateRanges();
         }
         
         // Base Chart class
@@ -463,11 +511,6 @@
                 }
                 
                 let maxCount = Math.max(...counts);
-                
-                // Ensure minimum scale for very small datasets
-                if (miniMode && maxCount < 100) {
-                    maxCount = 100; // Minimum scale to prevent bars from being too tall
-                }
                 
                 this.ctx.save();
                 this.ctx.translate(this.margin.left, this.margin.top);
@@ -1336,11 +1379,76 @@
                     requestIdleCallback(processBatch, { timeout: 16 });
                 } else {
                     updateStats();
+                    updateRanges();
                     updateAllCharts();
                 }
             }
             
             processBatch();
+        }
+        
+        // Calculate and update ranges for filtered data
+        function updateRanges() {
+            let timeMin = Infinity, timeMax = -Infinity;
+            let strengthMin = Infinity, strengthMax = -Infinity;
+            let angleMin = Infinity, angleMax = -Infinity;
+            let widthMin = Infinity, widthMax = -Infinity;
+            let heightMin = Infinity, heightMax = -Infinity;
+            
+            // Sample for performance - check every 1000th point
+            const sampleStep = Math.max(1, Math.floor(currentRows / 100000));
+            let hasFilteredData = false;
+            
+            for (let i = 0; i < currentRows; i += sampleStep) {
+                if (filteredIndices[i]) {
+                    hasFilteredData = true;
+                    
+                    // Time range
+                    if (data.timeSeconds[i] < timeMin) timeMin = data.timeSeconds[i];
+                    if (data.timeSeconds[i] > timeMax) timeMax = data.timeSeconds[i];
+                    
+                    // Strength range
+                    if (data.strength[i] < strengthMin) strengthMin = data.strength[i];
+                    if (data.strength[i] > strengthMax) strengthMax = data.strength[i];
+                    
+                    // Angle range
+                    if (data.angle[i] < angleMin) angleMin = data.angle[i];
+                    if (data.angle[i] > angleMax) angleMax = data.angle[i];
+                    
+                    // Width range
+                    if (data.width[i] < widthMin) widthMin = data.width[i];
+                    if (data.width[i] > widthMax) widthMax = data.width[i];
+                    
+                    // Height range
+                    if (data.height[i] < heightMin) heightMin = data.height[i];
+                    if (data.height[i] > heightMax) heightMax = data.height[i];
+                }
+            }
+            
+            // Format and update range displays
+            const formatTime = (seconds) => {
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                return `${h}:${m.toString().padStart(2, '0')}`;
+            };
+            
+            const formatAngle = (angle) => `${angle.toFixed(0)}°`;
+            const formatNumber = (num) => num.toFixed(2);
+            
+            if (hasFilteredData) {
+                document.getElementById('timeRange').textContent = `${formatTime(timeMin)} - ${formatTime(timeMax)}`;
+                document.getElementById('strengthRange').textContent = `${formatNumber(strengthMin)} - ${formatNumber(strengthMax)}`;
+                document.getElementById('angleRange').textContent = `${formatAngle(angleMin)} - ${formatAngle(angleMax)}`;
+                document.getElementById('widthRange').textContent = `${formatNumber(widthMin)} - ${formatNumber(widthMax)}`;
+                document.getElementById('heightRange').textContent = `${formatNumber(heightMin)} - ${formatNumber(heightMax)}`;
+            } else {
+                // No filtered data, show full range
+                document.getElementById('timeRange').textContent = '00:00 - 23:59';
+                document.getElementById('strengthRange').textContent = '0.00 - 100.00';
+                document.getElementById('angleRange').textContent = '0° - 360°';
+                document.getElementById('widthRange').textContent = '0.00 - 200.00';
+                document.getElementById('heightRange').textContent = '0.00 - 10.00';
+            }
         }
         
         // Update statistics with sampling
@@ -1439,6 +1547,7 @@
             
             Object.values(charts).forEach(chart => chart.reset());
             updateStats();
+            updateRanges();
             updateAllCharts();
         }
         
@@ -1484,9 +1593,58 @@
             }
         }
         
+        // Clear all chart selections
+        function clearAllSelections() {
+            Object.values(charts).forEach(chart => {
+                chart.selection = null;
+                if (chart.selectedCategories) {
+                    chart.selectedCategories.clear();
+                }
+            });
+        }
+
+        // Convert selection from old bin indices to new bin indices
+        function convertSelection(oldSelection, oldBinData, newBinData) {
+            if (!oldSelection || !oldBinData || !newBinData) return null;
+            
+            // Convert old bin indices to data values
+            const oldStartValue = oldBinData.min + oldSelection[0] * oldBinData.binSize;
+            const oldEndValue = oldBinData.min + (oldSelection[1] + 1) * oldBinData.binSize;
+            
+            // Convert data values to new bin indices
+            const newStartBin = Math.floor((oldStartValue - newBinData.min) / newBinData.binSize);
+            const newEndBin = Math.floor((oldEndValue - newBinData.min) / newBinData.binSize);
+            
+            // Clamp to valid range
+            const clampedStart = Math.max(0, Math.min(newStartBin, newBinData.bins.length - 1));
+            const clampedEnd = Math.max(0, Math.min(newEndBin, newBinData.bins.length - 1));
+            
+            return [clampedStart, clampedEnd];
+        }
+        
         // Toggle mini mode - data isolation toggle
         function toggleMiniMode() {
             const btn = document.getElementById('miniModeBtn');
+            
+            // Store current selections and bin data before switching TO mini mode
+            const oldSelections = {};
+            const oldBinData = {};
+            
+            if (!miniMode) {
+                // Store current selections and bin data from mega mode
+                Object.keys(charts).forEach(key => {
+                    const chart = charts[key];
+                    if (chart.selection) {
+                        oldSelections[key] = [...chart.selection];
+                    }
+                    if (chart.binData) {
+                        oldBinData[key] = { ...chart.binData };
+                    }
+                });
+            } else {
+                // Clear selections when switching back to mega mode
+                clearAllSelections();
+            }
             
             if (!miniMode) {
                 // Switch to mini mode - use filtered subset
@@ -1554,9 +1712,27 @@
                 
                 // Update stats BEFORE reinitializing charts
                 updateStats();
+                updateRanges();
                 
                 // Reinitialize charts
                 initCharts();
+                
+                // Restore selections with converted coordinates
+                Object.keys(oldSelections).forEach(key => {
+                    const chart = charts[key];
+                    if (chart && oldSelections[key] && oldBinData[key]) {
+                        const convertedSelection = convertSelection(
+                            oldSelections[key], 
+                            oldBinData[key], 
+                            chart.binData
+                        );
+                        if (convertedSelection) {
+                            chart.selection = convertedSelection;
+                            chart.draw();
+                        }
+                    }
+                });
+                
                 btn.innerHTML = '🔍 Mega';
                 
             } else {
@@ -1569,14 +1745,12 @@
                 filteredIndices = new Uint8Array(ROWS);
                 filteredIndices.fill(1);
                 
-                // Set mini mode BEFORE recalculating bins
+                // Set mini mode
                 miniMode = false;
                 
-                // Recalculate bins
-                prebinData();
-                
-                // Update stats BEFORE reinitializing charts
-                updateStats(); 
+                // Update stats (bins don't need recalculation in mega mode)
+                updateStats();
+                updateRanges(); 
                 
                 // Reinitialize charts
                 initCharts();
