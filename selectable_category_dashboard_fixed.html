@@ -1087,7 +1087,11 @@
                         this.ctx.strokeRect(x, height - h, barWidth, h);
                     }
                     
-                    // Value label - show count
+                    // Calculate percentage for cat4
+                    const totalFiltered = counts.reduce((sum, count) => sum + count, 0);
+                    const percentage = totalFiltered > 0 ? (counts[i] / totalFiltered * 100).toFixed(1) : '0.0';
+                    
+                    // Value label - show count and percentage
                     this.ctx.fillStyle = '#ccc';
                     this.ctx.font = '11px -apple-system, sans-serif';
                     this.ctx.textAlign = 'center';
@@ -1095,6 +1099,11 @@
                                     counts[i] >= 1000 ? `${(counts[i]/1000).toFixed(0)}k` : 
                                     counts[i].toFixed(0);
                     this.ctx.fillText(countStr, x + barWidth / 2, height - fh - 5);
+                    
+                    // Percentage label for cat4
+                    this.ctx.fillStyle = '#4a9eff';
+                    this.ctx.font = '10px -apple-system, sans-serif';
+                    this.ctx.fillText(`${percentage}%`, x + barWidth / 2, height - fh - 18);
                     
                     // Category label
                     this.ctx.fillStyle = '#888';
@@ -1177,7 +1186,11 @@
                         this.ctx.strokeRect(x, height - h, barWidth, h);
                     }
                     
-                    // Value label - show count
+                    // Calculate percentage for cat2
+                    const totalFiltered = counts.reduce((sum, count) => sum + count, 0);
+                    const percentage = totalFiltered > 0 ? (counts[i] / totalFiltered * 100).toFixed(1) : '0.0';
+                    
+                    // Value label - show count and percentage
                     this.ctx.fillStyle = '#ccc';
                     this.ctx.font = '11px -apple-system, sans-serif';
                     this.ctx.textAlign = 'center';
@@ -1185,6 +1198,11 @@
                                     counts[i] >= 1000 ? `${(counts[i]/1000).toFixed(0)}k` : 
                                     counts[i].toFixed(0);
                     this.ctx.fillText(countStr, x + barWidth / 2, height - fh - 5);
+                    
+                    // Percentage label for cat2
+                    this.ctx.fillStyle = '#4a9eff';
+                    this.ctx.font = '10px -apple-system, sans-serif';
+                    this.ctx.fillText(`${percentage}%`, x + barWidth / 2, height - fh - 18);
                     
                     // Category label
                     this.ctx.fillStyle = '#888';
