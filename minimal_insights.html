@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minimal Insights – Few Powerful Plots (Single File, Canvas2D)</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0a0a0a;color:#e0e0e0;overflow:hidden}
+    .header{background:#1a1a1a;padding:8px 16px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;margin:8px}
+    .stats{display:flex;gap:16px;font-size:13px}
+    .stats strong{color:#4a9eff}
+    .grid{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:8px;height:calc(100vh - 90px);padding:8px}
+    .panel{background:#1a1a1a;border-radius:4px;position:relative;padding:8px}
+    .panel-title{font-size:13px;margin-bottom:4px}
+    canvas{position:absolute;top:28px;left:8px;right:8px;bottom:12px}
+    button{background:#4a9eff;border:none;color:#fff;padding:6px 10px;border-radius:3px;cursor:pointer;font-size:12px}
+    button:hover{background:#3a8eef}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>Minimal Insights – Few Powerful Plots</h3>
+    <div class="stats">
+      <span>Total: <strong>10,000,000</strong></span>
+      <span>Filtered: <strong id="filtered">10,000,000</strong></span>
+      <span>Selected: <strong id="selected">100%</strong></span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="reset">Reset</button>
+      <button id="export">Export CSV</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel" style="grid-column:1/2;grid-row:1/3"><div class="panel-title">Joint Density (Width × Height) with Marginals – Drag to Filter</div><canvas id="joint"></canvas></div>
+    <div class="panel"><div class="panel-title">Category_4 Composition – Base (inner) vs Filtered (outer)</div><canvas id="donut"></canvas></div>
+    <div class="panel"><div class="panel-title">Rate of category_2=true by Time (drag to filter time)</div><canvas id="timerate"></canvas></div>
+  </div>
+
+  <script>
+    // -------- Data --------
+    const ROWS=10000000,BATCH=100000; let data={width:null,height:null,strength:null,timeSeconds:null,category_4:null,category_2:null}; let filtered=new Uint8Array(ROWS); let currentRows=ROWS; let filters={width:null,height:null,time:null,category:new Set(),categoryType:'cat4'};
+    function normalRandom(m,s){const u1=Math.random(),u2=Math.random();return m+Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*s}
+    function generate(){ data.width=new Float32Array(ROWS); data.height=new Float32Array(ROWS); data.strength=new Float32Array(ROWS); data.timeSeconds=new Float32Array(ROWS); data.category_4=new Uint8Array(ROWS); data.category_2=new Uint8Array(ROWS); let i=0; function step(){const end=Math.min(i+BATCH,ROWS); for(;i<end;i++){ let w;do{w=normalRandom(Math.random()<0.6?50:150,20)}while(w<1||w>=200); data.width[i]=w; let h;do{h=Math.exp(normalRandom(0.5,0.5))}while(h<0.2||h>=4.8); data.height[i]=h; let s;do{s=-Math.log(1-Math.random())*20}while(s>=100); data.strength[i]=s; const hour=normalRandom(13,4); const t=((hour+24)%24)*3600+Math.random()*3600; data.timeSeconds[i]=Math.max(0,Math.min(86399.999,t)); const p=Math.random(); data.category_4[i]=p<0.4?0:p<0.65?1:p<0.85?2:3; data.category_2[i]=Math.random()<0.55?1:0; filtered[i]=1; } if(i<ROWS){requestIdleCallback(step,{timeout:16})} else {init();} } step(); }
+
+    // -------- Base Chart --------
+    class Chart{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d',{alpha:false});this.resize=this.resize.bind(this);this.resize();window.addEventListener('resize',this.resize);} destroy(){window.removeEventListener('resize',this.resize);} resize(){const r=this.canvas.parentElement.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=(r.width-16)*d;this.canvas.height=(r.height-40)*d;this.canvas.style.width=(r.width-16)+'px';this.canvas.style.height=(r.height-40)+'px';this.ctx.setTransform(d,0,0,d,0,0);this.width=r.width-16;this.height=r.height-40;} clear(){this.ctx.fillStyle='#1a1a1a';this.ctx.fillRect(0,0,this.width,this.height);} }
+
+    // -------- Joint density with marginals --------
+    class JointMarginals extends Chart{constructor(id){super(id); this.margin={top:20,right:20,bottom:40,left:40}; this.grid=[100,80]; this.drag=false;}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right, h=this.height-this.margin.top-this.margin.bottom; const topH=60, rightW=60; const heatW=w-rightW, heatH=h-topH; const xBins=this.grid[0], yBins=this.grid[1]; const cellW=heatW/xBins, cellH=heatH/yBins; // ranges
+        let wmin=Infinity,wmax=-Infinity,hmin=Infinity,hmax=-Infinity; const step0=Math.max(1,Math.floor(currentRows/200000)); for(let i=0;i<currentRows;i+=step0){ const xv=data.width[i], yv=data.height[i]; if(xv<wmin)wmin=xv; if(xv>wmax)wmax=xv; if(yv<hmin)hmin=yv; if(yv>hmax)hmax=yv; }
+        const xSize=(wmax-wmin)/xBins||1, ySize=(hmax-hmin)/yBins||1; const grid=new Float32Array(xBins*yBins), histX=new Float32Array(xBins), histY=new Float32Array(yBins); const step=Math.max(1,Math.floor(currentRows/100000));
+        for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const xv=Math.min(data.width[i], wmax-Number.EPSILON); const yv=Math.min(data.height[i], hmax-Number.EPSILON); const xb=Math.floor((xv-wmin)/xSize), yb=Math.floor((yv-hmin)/ySize); if(xb>=0&&xb<xBins&&yb>=0&&yb<yBins){ grid[yb*xBins+xb]++; histX[xb]++; histY[yb]++; } }
+        // heat
+        this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top+topH); let max=0; for(let i=0;i<grid.length;i++) if(grid[i]>max) max=grid[i]; for(let y=0;y<yBins;y++){ for(let x=0;x<xBins;x++){ const v=grid[y*xBins+x]/(max||1); const col=`hsl(${Math.round(220-220*v)},80%,${Math.round(20+50*v)}%)`; this.ctx.fillStyle=col; this.ctx.fillRect(x*cellW, heatH-(y+1)*cellH, cellW, cellH);} }
+        // axes
+        this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,heatH); this.ctx.lineTo(heatW,heatH); this.ctx.moveTo(0,0); this.ctx.lineTo(0,heatH); this.ctx.stroke(); this.ctx.restore();
+        // top histogram
+        this.ctx.save(); this.ctx.translate(this.margin.left, this.margin.top); let maxHX=Math.max(...histX,1); const bw=heatW/xBins; this.ctx.fillStyle='#4a9eff'; for(let i=0;i<xBins;i++){ const bh=(histX[i]/maxHX)*topH; this.ctx.fillRect(i*bw, topH-bh, bw-1, bh);} this.ctx.restore();
+        // right histogram
+        this.ctx.save(); this.ctx.translate(this.margin.left+heatW, this.margin.top+topH); let maxHY=Math.max(...histY,1); const bh=heatH/yBins; this.ctx.fillStyle='#4a9eff'; for(let i=0;i<yBins;i++){ const bw2=(histY[i]/maxHY)*rightW; this.ctx.fillRect(0, heatH-(i+1)*bh, bw2, bh-1);} this.ctx.restore();
+        // selection overlay
+        if(this.sel){ const x1=this.valueToX(this.sel[0],wmin,wmax,heatW); const x2=this.valueToX(this.sel[1],wmin,wmax,heatW); const y1=this.valueToY(this.sel[2],hmin,hmax,heatH); const y2=this.valueToY(this.sel[3],hmin,hmax,heatH); this.ctx.save(); this.ctx.translate(this.margin.left, this.margin.top+topH); this.ctx.fillStyle='rgba(255,255,255,0.08)'; this.ctx.strokeStyle='#feca57'; this.ctx.fillRect(Math.min(x1,x2), Math.min(y1,y2), Math.abs(x2-x1), Math.abs(y2-y1)); this.ctx.strokeRect(Math.min(x1,x2), Math.min(y1,y2), Math.abs(x2-x1), Math.abs(y2-y1)); this.ctx.restore(); }
+        // ticks
+        this.ctx.save(); this.ctx.translate(this.margin.left, this.margin.top+topH+heatH); this.ctx.fillStyle='#888'; this.ctx.font='10px -apple-system, sans-serif'; this.ctx.textAlign='center'; for(let i=0;i<=5;i++){ const x=i/5*heatW; const v=wmin+i/5*(wmax-wmin); this.ctx.fillText(v.toFixed(1), x, 15);} this.ctx.restore();
+        this.ctx.save(); this.ctx.translate(this.margin.left-6, this.margin.top+topH); this.ctx.fillStyle='#888'; this.ctx.font='10px -apple-system, sans-serif'; this.ctx.textAlign='right'; for(let i=0;i<=5;i++){ const y=heatH - i/5*heatH; const v=hmin+i/5*(hmax-hmin); this.ctx.fillText(v.toFixed(2), -4, y+4);} this.ctx.restore();
+        // cache ranges for interactions
+        this._ranges=[wmin,wmax,hmin,hmax,heatW,heatH,topH];
+      }
+      valueToX(v,min,max,heatW){ return ((v-min)/(max-min))*heatW; }
+      valueToY(v,min,max,heatH){ return heatH - ((v-min)/(max-min))*heatH; }
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}}
+      inHeat(p){ if(!this._ranges) return false; const [,, , ,heatW,heatH,topH]=this._ranges; return p.x>=this.margin.left && p.x<=this.margin.left+heatW && p.y>=this.margin.top+topH && p.y<=this.margin.top+topH+heatH; }
+      onMouseDown(e){ const p=this.pos(e); if(!this.inHeat(p)) return; this.drag=true; this.start=p; this.sel=[0,0,0,0]; }
+      onMouseMove(e){ if(!this.drag) return; const p=this.pos(e); this.end=p; const [wmin,wmax,hmin,hmax,heatW,heatH,topH]=this._ranges; const x1=Math.max(this.margin.left, Math.min(this.margin.left+heatW, this.start.x)); const x2=Math.max(this.margin.left, Math.min(this.margin.left+heatW, p.x)); const y1=Math.max(this.margin.top+topH, Math.min(this.margin.top+topH+heatH, this.start.y)); const y2=Math.max(this.margin.top+topH, Math.min(this.margin.top+topH+heatH, p.y)); const vx1=wmin+((x1-this.margin.left)/heatW)*(wmax-wmin); const vx2=wmin+((x2-this.margin.left)/heatW)*(wmax-wmin); const vy1=hmin+((y1-(this.margin.top+topH))/heatH)*(hmax-hmin); const vy2=hmin+((y2-(this.margin.top+topH))/heatH)*(hmax-hmin); this.sel=[vx1,vx2,vy1,vy2]; this.draw(); }
+      onMouseUp(){ if(this.drag && this.sel){ const sW=Math.min(this.sel[0],this.sel[1]), eW=Math.max(this.sel[0],this.sel[1]); const sH=Math.min(this.sel[2],this.sel[3]), eH=Math.max(this.sel[2],this.sel[3]); filters.width=[sW,eW]; filters.height=[sH,eH]; apply(); } this.drag=false; }
+    }
+
+    // -------- Donut compare (cat_4) --------
+    class DonutCompare extends Chart{constructor(id){super(id);} draw(){ this.clear(); const cx=this.width/2, cy=this.height/2, rOuter=Math.min(cx,cy)-20, rInner=rOuter*0.55; // counts
+        const base=[0,0,0,0], filt=[0,0,0,0]; const step=Math.max(1,Math.floor(currentRows/1000000)); for(let i=0;i<currentRows;i+=step){ base[data.category_4[i]]++; if(filtered[i]) filt[data.category_4[i]]++; } const baseTot=base.reduce((a,b)=>a+b,0)||1, filtTot=filt.reduce((a,b)=>a+b,0)||1; const colors=['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4'];
+        // draw rings
+        let start= -Math.PI/2; this.ctx.save(); for(let i=0;i<4;i++){ const frac=base[i]/baseTot; const end=start+frac*2*Math.PI; this.ctx.fillStyle=colors[i]; this.pathRing(cx,cy,rInner*0.6,rInner,start,end); this.ctx.fill(); start=end; }
+        start= -Math.PI/2; for(let i=0;i<4;i++){ const frac=filt[i]/filtTot; const end=start+frac*2*Math.PI; this.ctx.fillStyle=colors[i]; this.pathRing(cx,cy,rInner,rOuter,start,end); this.ctx.globalAlpha=0.9; this.ctx.fill(); this.ctx.globalAlpha=1; start=end; }
+        // labels
+        this.ctx.fillStyle='#ccc'; this.ctx.font='12px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText('Base', cx, cy-4); this.ctx.fillText('Filtered', cx, cy+12);
+        this.ctx.restore(); }
+      pathRing(cx,cy,r1,r2,start,end){ this.ctx.beginPath(); this.ctx.arc(cx,cy,r1,start,end); this.ctx.arc(cx,cy,r2,end,start,true); this.ctx.closePath(); }
+    }
+
+    // -------- Time rate chart (cat2 true rate) --------
+    class TimeRate extends Chart{constructor(id){super(id); this.margin={top:10,right:10,bottom:40,left:50}; this.bins=48; this.drag=false;}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right, h=this.height-this.margin.top-this.margin.bottom; const binW=86400/this.bins; const sum=new Float64Array(this.bins), cnt=new Uint32Array(this.bins); const step=Math.max(1,Math.floor(currentRows/300000)); for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const b=Math.floor(Math.min(data.timeSeconds[i],86399.999)/binW); cnt[b]++; if(data.category_2[i]) sum[b]++; } const rate=new Float32Array(this.bins); for(let i=0;i<this.bins;i++) rate[i]= cnt[i]? sum[i]/cnt[i] : 0; const maxY=1; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); this.ctx.strokeStyle='#4a9eff'; this.ctx.lineWidth=2; this.ctx.beginPath(); for(let i=0;i<this.bins;i++){ const x=i*(w/(this.bins-1)); const y=h-(rate[i]*h); if(i===0)this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} this.ctx.stroke(); if(this.sel){ const x1=(this.sel[0]/86400)*w, x2=(this.sel[1]/86400)*w; this.ctx.fillStyle='rgba(255,255,255,.08)'; this.ctx.strokeStyle='#feca57'; this.ctx.fillRect(Math.min(x1,x2),0,Math.abs(x2-x1),h); this.ctx.strokeRect(Math.min(x1,x2),0,Math.abs(x2-x1),h);} this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,h); this.ctx.lineTo(w,h); this.ctx.moveTo(0,0); this.ctx.lineTo(0,h); this.ctx.stroke(); this.ctx.fillStyle='#888'; this.ctx.font='10px -apple-system, sans-serif'; this.ctx.textAlign='center'; for(let i=0;i<=6;i++){ const x=i/6*w; const hh=Math.floor(i/6*24); this.ctx.fillText(`${hh}:00`, x, h+15);} this.ctx.restore(); }
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}}
+      inArea(p){return p.x>=this.margin.left&&p.x<=this.width-this.margin.right&&p.y>=this.margin.top&&p.y<=this.height-this.margin.bottom}
+      onMouseDown(e){ const p=this.pos(e); if(!this.inArea(p)) return; this.drag=true; this.sel=[ (p.x-this.margin.left)/(this.width-this.margin.left-this.margin.right)*86400, (p.x-this.margin.left)/(this.width-this.margin.left-this.margin.right)*86400 ]; this.draw(); }
+      onMouseMove(e){ if(!this.drag) return; const p=this.pos(e); this.sel[1]=(p.x-this.margin.left)/(this.width-this.margin.left-this.margin.right)*86400; this.sel[1]=Math.max(0,Math.min(86399.999,this.sel[1])); this.draw(); }
+      onMouseUp(){ if(this.drag && this.sel){ const s=Math.min(this.sel[0],this.sel[1]), e=Math.max(this.sel[0],this.sel[1]); filters.time=[s,e]; apply(); } this.drag=false; }
+    }
+
+    // -------- Wiring --------
+    let charts={};
+    function init(){ charts.joint=new JointMarginals('joint'); charts.donut=new DonutCompare('donut'); charts.timerate=new TimeRate('timerate'); drawAll(); }
+    function drawAll(){ Object.values(charts).forEach(c=>c.draw()); updateStats(); }
+    function apply(){ const end=currentRows; let processed=0; function run(){ const lim=Math.min(processed+1000000,end); for(let i=processed;i<lim;i++){ let pass=true; if(filters.width && (data.width[i] < filters.width[0] || data.width[i] >= filters.width[1])) pass=false; if(pass && filters.height && (data.height[i] < filters.height[0] || data.height[i] >= filters.height[1])) pass=false; if(pass && filters.time && (data.timeSeconds[i] < filters.time[0] || data.timeSeconds[i] >= filters.time[1])) pass=false; if(pass && filters.category.size>0){ if(!filters.category.has(data.category_4[i])) pass=false; } filtered[i]=pass?1:0; } processed=lim; if(processed<end){ requestIdleCallback(run,{timeout:16}); } else { drawAll(); } } run(); }
+    function updateStats(){ let cnt=0; const step=Math.max(1,Math.floor(currentRows/1000000)); for(let i=0;i<currentRows;i+=step){ if(filtered[i]) cnt++; } cnt*=step; document.getElementById('filtered').textContent = cnt>=1000000? `${(cnt/1000000).toFixed(1)}M` : cnt.toLocaleString(); document.getElementById('selected').textContent = (cnt/currentRows*100).toFixed(1)+'%'; }
+
+    document.getElementById('reset').addEventListener('click', ()=>{ filters={width:null,height:null,time:null,category:new Set(),categoryType:'cat4'}; filtered.fill(1); drawAll(); });
+    document.getElementById('export').addEventListener('click', ()=>{ const rows=['width,height,strength,timeSeconds,category_4,category_2']; let c=0; for(let i=0;i<currentRows;i++){ if(filtered[i]){ rows.push([ data.width[i].toFixed(2), data.height[i].toFixed(3), data.strength[i].toFixed(2), data.timeSeconds[i].toFixed(2), ['A','B','C','D'][data.category_4[i]], data.category_2[i]===1 ].join(',')); c++; } } const blob=new Blob([rows.join('\n')],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`minimal_insights_export_${c}.csv`; a.click(); URL.revokeObjectURL(url); });
+
+    function init(){ charts.joint=new JointMarginals('joint'); charts.donut=new DonutCompare('donut'); charts.timerate=new TimeRate('timerate'); drawAll(); }
+    generate();
+  </script>
+</body>
+</html>
+
+

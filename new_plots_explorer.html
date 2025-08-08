@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Plots Explorer – Single File, Canvas2D</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0a0a0a;color:#e0e0e0;overflow:hidden}
+    .header{background:#1a1a1a;padding:8px 16px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;margin:8px}
+    .stats{display:flex;gap:16px;font-size:13px}
+    .stats strong{color:#4a9eff}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:8px;height:calc(100vh - 90px);padding:8px}
+    .panel{background:#1a1a1a;border-radius:4px;position:relative;padding:8px}
+    .panel-title{font-size:13px;margin-bottom:4px}
+    canvas{position:absolute;top:28px;left:8px;right:8px;bottom:12px}
+    button,select{background:#333;color:#e0e0e0;border:1px solid #555;border-radius:3px;font-size:11px;padding:2px 6px}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>New Plots Explorer</h3>
+    <div class="stats">
+      <span>Total: <strong>10,000,000</strong></span>
+      <span>Filtered: <strong id="filtered">10,000,000</strong></span>
+      <span>Selected: <strong id="selected">100%</strong></span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label for="pred" style="font-size:12px;color:#888">Predictor:</label>
+      <select id="pred">
+        <option value="strength" selected>strength</option>
+        <option value="width">width</option>
+        <option value="height">height</option>
+        <option value="timeSeconds">time</option>
+      </select>
+      <button id="reset">Reset</button>
+      <button id="export">Export CSV</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel"><div class="panel-title">ROC Curve (predicting category_2=true)</div><canvas id="roc"></canvas></div>
+    <div class="panel"><div class="panel-title">Precision–Recall</div><canvas id="pr"></canvas></div>
+    <div class="panel"><div class="panel-title">Cumulative Gain / Lift</div><canvas id="gain"></canvas></div>
+    <div class="panel"><div class="panel-title">Ridgeline: Width by category_4 (drag to filter width)</div><canvas id="ridge"></canvas></div>
+    <div class="panel"><div class="panel-title">Mosaic: category_2 × category_4 (click to filter)</div><canvas id="mosaic"></canvas></div>
+    <div class="panel"><div class="panel-title">QQ Plot: Filtered vs Base (predictor)</div><canvas id="qq"></canvas></div>
+  </div>
+
+  <script>
+    // ------------- Data -------------
+    const ROWS=10000000,BATCH=100000; let data={timeSeconds:null,strength:null,width:null,height:null,category_4:null,category_2:null}; let filtered=new Uint8Array(ROWS); let currentRows=ROWS; let filters={time:null,strength:null,width:null,height:null,category:new Set(),categoryType:'cat4'};
+    function normalRandom(m,s){const u1=Math.random(),u2=Math.random();return m+Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*s}
+    function gen(){data.timeSeconds=new Float32Array(ROWS);data.strength=new Float32Array(ROWS);data.width=new Float32Array(ROWS);data.height=new Float32Array(ROWS);data.category_4=new Uint8Array(ROWS);data.category_2=new Uint8Array(ROWS); let i=0; function step(){const end=Math.min(i+BATCH,ROWS); for(;i<end;i++){ let w;do{w=normalRandom(Math.random()<0.6?50:150,20)}while(w<1||w>=200); data.width[i]=w; let h;do{h=Math.exp(normalRandom(0.5,0.5))}while(h<0.2||h>=4.8); data.height[i]=h; let s;do{s=-Math.log(1-Math.random())*20}while(s>=100); data.strength[i]=s; const hour=normalRandom(13,4); const t=((hour+24)%24)*3600+Math.random()*3600; data.timeSeconds[i]=Math.max(0,Math.min(86399.999,t)); const p=Math.random(); data.category_4[i]=p<0.4?0:p<0.65?1:p<0.85?2:3; data.category_2[i]=Math.random()<0.55?1:0; filtered[i]=1; } if(i<ROWS){requestIdleCallback(step,{timeout:16})} else {init();} } step(); }
+
+    // ------------- Base Chart -------------
+    class Chart{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d',{alpha:false});this.resize=this.resize.bind(this);this.resize();window.addEventListener('resize',this.resize);} destroy(){window.removeEventListener('resize',this.resize);} resize(){const r=this.canvas.parentElement.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=(r.width-16)*d;this.canvas.height=(r.height-40)*d;this.canvas.style.width=(r.width-16)+'px';this.canvas.style.height=(r.height-40)+'px';this.ctx.setTransform(d,0,0,d,0,0);this.width=r.width-16;this.height=r.height-40;} clear(){this.ctx.fillStyle='#1a1a1a';this.ctx.fillRect(0,0,this.width,this.height);} }
+
+    // ------------- ROC/PR/Gain (uses threshold bins) -------------
+    function computeThresholdBins(field){ // returns sorted bins by value
+      const arr=data[field]; const step=Math.max(1,Math.floor(currentRows/200000)); const pairs=[]; for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; pairs.push([arr[i], data.category_2[i]]); }
+      pairs.sort((a,b)=>a[0]-b[0]); return pairs;
+    }
+    function rocPrGain(field){ const pairs=computeThresholdBins(field); const n=pairs.length||1; let tp=0, fp=0, fn=0, tn=0; const totalPos=pairs.reduce((s,p)=>s+(p[1]===1),0); const totalNeg=n-totalPos; // walk high->low threshold
+      let TPR=[],FPR=[],P=[],R=[],CG=[],LIFT=[]; let cumPos=0,cumTot=0; for(let i=n-1;i>=0;i--){ const y=pairs[i][1]; if(y===1) tp++; else fp++; fn=totalPos-tp; tn=totalNeg-fp; const tpr=tp/Math.max(1,totalPos), fpr=fp/Math.max(1,totalNeg); const prec=tp/Math.max(1,tp+fp), rec=tpr; const frac=(++cumTot)/n; cumPos+= (y===1?1:0); const gain=cumPos/Math.max(1,totalPos); const lift=gain/frac; if(i%Math.max(1,Math.floor(n/200))===0 || i===0){ TPR.push(tpr); FPR.push(fpr); P.push(prec); R.push(rec); CG.push(gain); LIFT.push(lift); } }
+      return {TPR,FPR,P,R,CG,LIFT}; }
+
+    class RocPlot extends Chart{constructor(id){super(id); this.margin={top:10,right:10,bottom:40,left:50};}
+      draw(){ this.clear(); const field=document.getElementById('pred').value; const {TPR,FPR}=rocPrGain(field); const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); this.ctx.strokeStyle='#4a9eff'; this.ctx.lineWidth=2; this.ctx.beginPath(); for(let i=0;i<FPR.length;i++){ const x=FPR[i]*w, y=h-TPR[i]*h; if(i===0)this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y); } this.ctx.stroke(); this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,h); this.ctx.lineTo(w,0); this.ctx.stroke(); this.ctx.restore(); } }
+    class PrPlot extends Chart{constructor(id){super(id); this.margin={top:10,right:10,bottom:40,left:50};}
+      draw(){ this.clear(); const field=document.getElementById('pred').value; const {P,R}=rocPrGain(field); const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); this.ctx.strokeStyle='#48dbfb'; this.ctx.lineWidth=2; this.ctx.beginPath(); for(let i=0;i<P.length;i++){ const x=R[i]*w, y=h-P[i]*h; if(i===0)this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y); } this.ctx.stroke(); this.ctx.restore(); } }
+    class GainPlot extends Chart{constructor(id){super(id); this.margin={top:10,right:10,bottom:40,left:50};}
+      draw(){ this.clear(); const field=document.getElementById('pred').value; const {CG,LIFT}=rocPrGain(field); const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); // cumulative gain
+        this.ctx.strokeStyle='#96ceb4'; this.ctx.lineWidth=2; this.ctx.beginPath(); for(let i=0;i<CG.length;i++){ const x=(i/(CG.length-1))*w, y=h-CG[i]*h; if(i===0)this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} this.ctx.stroke(); // lift (scaled)
+        this.ctx.strokeStyle='#ff6b6b'; this.ctx.beginPath(); const maxL=Math.max(...LIFT,1); for(let i=0;i<LIFT.length;i++){ const x=(i/(LIFT.length-1))*w, y=h-(Math.min(LIFT[i],maxL)/maxL)*h; if(i===0)this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} this.ctx.stroke(); this.ctx.restore(); } }
+
+    // ------------- Ridgeline (width by category_4) -------------
+    class Ridge extends Chart{constructor(id){super(id); this.margin={top:10,right:10,bottom:30,left:50}; this.drag=false;}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; const rows=4, bins=60; const colors=['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4']; const step0=Math.max(1,Math.floor(currentRows/200000)); let mn=Infinity,mx=-Infinity; for(let i=0;i<currentRows;i+=step0){ const v=data.width[i]; if(v<mn)mn=v; if(v>mx)mx=v; }
+        const bs=(mx-mn)/bins||1; const counts=Array.from({length:rows},()=>new Float32Array(bins)); const step=Math.max(1,Math.floor(currentRows/500000)); for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const v=Math.min(data.width[i], mx-Number.EPSILON); const b=Math.floor((v-mn)/bs); const c=data.category_4[i]; if(b>=0&&b<bins) counts[c][b]++; }
+        // scale per row
+        const rowH=h/rows*0.8, gap=h/rows*0.2; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); for(let r=0;r<rows;r++){ const maxC=Math.max(...counts[r],1); const y0=r*(rowH+gap)+rowH; this.ctx.strokeStyle=colors[r]; this.ctx.beginPath(); for(let i=0;i<bins;i++){ const x=i*(w/(bins-1)); const y=y0-(counts[r][i]/maxC)*rowH; if(i===0)this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} this.ctx.stroke(); this.ctx.fillStyle=colors[r]; this.ctx.fillText(['A','B','C','D'][r], 0, y0-rowH-4); }
+        // selection overlay
+        if(this.sel){ const x1=((this.sel[0]-mn)/(mx-mn))*w, x2=((this.sel[1]-mn)/(mx-mn))*w; this.ctx.fillStyle='rgba(255,255,255,.08)'; this.ctx.strokeStyle='#feca57'; this.ctx.fillRect(Math.min(x1,x2),0,Math.abs(x2-x1),h); this.ctx.strokeRect(Math.min(x1,x2),0,Math.abs(x2-x1),h);} this.ctx.restore(); }
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}}
+      inArea(p){return p.x>=this.margin.left&&p.x<=this.width-this.margin.right&&p.y>=this.margin.top&&p.y<=this.height-this.margin.bottom}
+      mToVal(x,mn,mx){const w=this.width-this.margin.left-this.margin.right; return mn + ((x-this.margin.left)/w)*(mx-mn);}
+      onMouseDown(e){ const p=this.pos(e); if(!this.inArea(p)) return; this.drag=true; // determine mn/mx same as draw
+        let mn=Infinity,mx=-Infinity; const step0=Math.max(1,Math.floor(currentRows/200000)); for(let i=0;i<currentRows;i+=step0){ const v=data.width[i]; if(v<mn)mn=v; if(v>mx)mx=v; } this.dragMin=mn; this.dragMax=mx; this.sel=[this.mToVal(p.x,mn,mx), this.mToVal(p.x,mn,mx)]; this.draw(); }
+      onMouseMove(e){ if(!this.drag) return; const p=this.pos(e); this.sel[1]=this.mToVal(p.x,this.dragMin,this.dragMax); this.draw(); }
+      onMouseUp(){ if(this.drag && this.sel){ const s=Math.min(this.sel[0],this.sel[1]), e=Math.max(this.sel[0],this.sel[1]); filters.width=[s,e]; apply(); } this.drag=false; }
+    }
+
+    // ------------- Mosaic: category_2 × category_4 -------------
+    class Mosaic extends Chart{constructor(id){super(id); this.margin={top:20,right:10,bottom:30,left:50};}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; const joint=[[0,0,0,0],[0,0,0,0]]; const step=Math.max(1,Math.floor(currentRows/500000)); for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; joint[data.category_2[i]][data.category_4[i]]++; } // normalize
+        const totalsCol=[0,0,0,0]; for(let c=0;c<4;c++){ totalsCol[c]=joint[0][c]+joint[1][c]; }
+        const grand=totalsCol.reduce((a,b)=>a+b,0)||1; const colors=['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4']; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); let x=0; for(let c=0;c<4;c++){ const widthFrac=totalsCol[c]/grand; const cw=widthFrac*w; const y0=(joint[0][c]/Math.max(1,totalsCol[c]))*h; // false height
+          // false
+          this.ctx.fillStyle=colors[c]; this.ctx.globalAlpha=0.45; this.ctx.fillRect(x, h-y0, cw, y0); // true
+          const y1=(joint[1][c]/Math.max(1,totalsCol[c]))*h; this.ctx.globalAlpha=0.9; this.ctx.fillRect(x, h-y0-y1, cw, y1); this.ctx.globalAlpha=1; this.ctx.strokeStyle='#222'; this.ctx.strokeRect(x, h-y0-y1, cw, y1+y0); // label
+          this.ctx.fillStyle='#ccc'; this.ctx.font='11px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText(['A','B','C','D'][c], x+cw/2, h+16);
+          // store clickable regions
+          if(!this.regions) this.regions=[]; this.regions[c]={x, cw, yFalse:h-y0, hFalse:y0, yTrue:h-y0-y1, hTrue:y1, cat:c};
+          x+=cw;
+        }
+        this.ctx.restore(); }
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}}
+      onClick(e){ const p=this.pos(e); const r=this.regions||[]; for(const reg of r){ const x0=reg.x+this.margin.left, x1=reg.x+reg.cw+this.margin.left; if(p.x>=x0 && p.x<=x1){ if(p.y>=this.margin.top+reg.yTrue && p.y<=this.margin.top+reg.yTrue+reg.hTrue){ // true
+              filters.category=new Set([reg.cat]); filters.categoryType='cat4'; apply(); return; } if(p.y>=this.margin.top+reg.yFalse && p.y<=this.margin.top+reg.yFalse+reg.hFalse){ filters.category=new Set([reg.cat]); filters.categoryType='cat4'; apply(); return; } } } // click outside clears
+        filters.category.clear(); apply(); }
+    }
+
+    // ------------- QQ plot: filtered vs base -------------
+    class QQPlot extends Chart{constructor(id){super(id); this.margin={top:10,right:10,bottom:40,left:50};}
+      draw(){ this.clear(); const field=document.getElementById('pred').value; const arr=data[field]; const step=Math.max(1,Math.floor(currentRows/500000)); const A=[], B=[]; for(let i=0;i<currentRows;i+=step){ const v=arr[i]; B.push(v); if(filtered[i]) A.push(v); } if(A.length===0||B.length===0){ return; } A.sort((a,b)=>a-b); B.sort((a,b)=>a-b); const n=Math.min(A.length,B.length); const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; const min=Math.min(B[0],A[0]), max=Math.max(B[n-1],A[n-1]); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); this.ctx.strokeStyle='#4a9eff'; this.ctx.beginPath(); for(let i=0;i<n;i+=Math.max(1,Math.floor(n/400))){ const x=((B[i]-min)/(max-min))*w; const y=h-((A[i]-min)/(max-min))*h; if(i===0)this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} this.ctx.stroke(); this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,h); this.ctx.lineTo(w,0); this.ctx.stroke(); this.ctx.restore(); }
+    }
+
+    // ------------- Wiring -------------
+    let charts={};
+    function init(){ charts.roc=new RocPlot('roc'); charts.pr=new PrPlot('pr'); charts.gain=new GainPlot('gain'); charts.ridge=new Ridge('ridge'); charts.mosaic=new Mosaic('mosaic'); charts.qq=new QQPlot('qq'); drawAll(); }
+    function drawAll(){ Object.values(charts).forEach(c=>c.draw()); updateStats(); }
+    function apply(){ const end=currentRows; let processed=0; function run(){ const lim=Math.min(processed+1000000,end); for(let i=processed;i<lim;i++){ let pass=true; if(filters.time && (data.timeSeconds[i] < filters.time[0] || data.timeSeconds[i] >= filters.time[1])) pass=false; if(pass && filters.width && (data.width[i] < filters.width[0] || data.width[i] >= filters.width[1])) pass=false; if(pass && filters.height && (data.height[i] < filters.height[0] || data.height[i] >= filters.height[1])) pass=false; if(pass && filters.strength && (data.strength[i] < filters.strength[0] || data.strength[i] >= filters.strength[1])) pass=false; if(pass && filters.category.size>0){ if(!filters.category.has(data.category_4[i])) pass=false; } filtered[i]=pass?1:0; } processed=lim; if(processed<end){ requestIdleCallback(run,{timeout:16}); } else { drawAll(); } } run(); }
+    function updateStats(){ let cnt=0; const step=Math.max(1,Math.floor(currentRows/1000000)); for(let i=0;i<currentRows;i+=step){ if(filtered[i]) cnt++; } cnt*=step; document.getElementById('filtered').textContent = cnt>=1000000? `${(cnt/1000000).toFixed(1)}M` : cnt.toLocaleString(); document.getElementById('selected').textContent = (cnt/currentRows*100).toFixed(1)+'%'; }
+
+    document.getElementById('reset').addEventListener('click', ()=>{ filters={time:null,strength:null,width:null,height:null,category:new Set(),categoryType:'cat4'}; filtered.fill(1); drawAll(); });
+    document.getElementById('export').addEventListener('click', ()=>{ const rows=['timeSeconds,strength,width,height,category_4,category_2']; let c=0; for(let i=0;i<currentRows;i++){ if(filtered[i]){ rows.push([ data.timeSeconds[i].toFixed(2), data.strength[i].toFixed(2), data.width[i].toFixed(2), data.height[i].toFixed(3), ['A','B','C','D'][data.category_4[i]], data.category_2[i]===1 ].join(',')); c++; } } const blob=new Blob([rows.join('\n')],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`newplots_export_${c}.csv`; a.click(); URL.revokeObjectURL(url); });
+    document.getElementById('pred').addEventListener('change', ()=> drawAll());
+
+    gen();
+  </script>
+</body>
+</html>
+
+

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CDF Explorer - Single File</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0a0a0a;color:#e0e0e0;overflow:hidden}
+    .header{background:#1a1a1a;padding:8px 16px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;margin:8px}
+    .stats{display:flex;gap:16px;font-size:13px}
+    .stats strong{color:#4a9eff}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:8px;height:calc(100vh - 90px);padding:8px}
+    .panel{background:#1a1a1a;border-radius:4px;position:relative;padding:8px}
+    .panel-title{font-size:13px;margin-bottom:4px}
+    canvas{position:absolute;top:28px;left:8px;right:8px;bottom:10px}
+    button{background:#4a9eff;border:none;color:#fff;padding:6px 10px;border-radius:3px;cursor:pointer;font-size:12px}
+    button:hover{background:#3a8eef}
+    #tooltip{position:fixed;background:rgba(0,0,0,0.95);padding:6px 10px;border-radius:3px;border:1px solid #333;font-size:11px;display:none;pointer-events:none;z-index:1000}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>CDF Explorer</h3>
+    <div class="stats">
+      <span>Total: <strong>10,000,000</strong></span>
+      <span>Filtered: <strong id="filtered">10,000,000</strong></span>
+      <span>Selected: <strong id="selected">100%</strong></span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="reset">Reset</button>
+      <button id="export">Export CSV</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel"><div class="panel-title">CDF: Time</div><canvas id="cdfTime"></canvas></div>
+    <div class="panel"><div class="panel-title">CDF: Strength</div><canvas id="cdfStrength"></canvas></div>
+    <div class="panel"><div class="panel-title">CDF: Width</div><canvas id="cdfWidth"></canvas></div>
+    <div class="panel"><div class="panel-title">CDF: Height</div><canvas id="cdfHeight"></canvas></div>
+    <div class="panel"><div class="panel-title">Quantiles</div><canvas id="quantiles"></canvas></div>
+    <div class="panel"><div class="panel-title">Category (2) Breakdown</div><canvas id="cat2"></canvas></div>
+  </div>
+
+  <div id="tooltip"></div>
+
+  <script>
+    const ROWS=10000000,BATCH=100000; let data={timeSeconds:null,strength:null,width:null,height:null,category_2:null}; let filtered=new Uint8Array(ROWS); let currentRows=ROWS; let filters={time:null,strength:null,width:null,height:null};
+    function normalRandom(m,s){const u1=Math.random(),u2=Math.random();return m+Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*s}
+
+    function gen(){data.timeSeconds=new Float32Array(ROWS);data.strength=new Float32Array(ROWS);data.width=new Float32Array(ROWS);data.height=new Float32Array(ROWS);data.category_2=new Uint8Array(ROWS); let i=0; function step(){const end=Math.min(i+BATCH,ROWS); for(;i<end;i++){ let w;do{w=normalRandom(Math.random()<0.6?50:150,20)}while(w<1||w>=200); data.width[i]=w; let h;do{h=Math.exp(normalRandom(0.5,0.5))}while(h<0.2||h>=4.8); data.height[i]=h; let s;do{s=-Math.log(1-Math.random())*20}while(s>=100); data.strength[i]=s; const hour=normalRandom(13,4); const t=((hour+24)%24)*3600+Math.random()*3600; data.timeSeconds[i]=Math.max(0,Math.min(86399.999,t)); data.category_2[i]=Math.random()<0.55?1:0; filtered[i]=1; } if(i<ROWS){requestIdleCallback(step,{timeout:16})} else {init();}} step(); }
+
+    class Chart{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d',{alpha:false});this.resize=this.resize.bind(this);this.resize();window.addEventListener('resize',this.resize);} destroy(){window.removeEventListener('resize',this.resize);} resize(){const r=this.canvas.parentElement.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=(r.width-16)*d;this.canvas.height=(r.height-36)*d;this.canvas.style.width=(r.width-16)+'px';this.canvas.style.height=(r.height-36)+'px';this.ctx.setTransform(d,0,0,d,0,0);this.width=r.width-16;this.height=r.height-36;} clear(){this.ctx.fillStyle='#1a1a1a';this.ctx.fillRect(0,0,this.width,this.height);} }
+
+    class CDF extends Chart{constructor(id,arr,label,fmt){super(id);this.arr=arr;this.label=label;this.fmt=fmt;this.margin={top:10,right:10,bottom:40,left:50};this.threshold=null;this.canvas.addEventListener('click',e=>{const p=this.pos(e);const x=p.x-this.margin.left;const w=this.width-this.margin.left-this.margin.right; const t=this.min+x/w*(this.max-this.min); this.threshold=t; filters[this.label]=[this.min,t]; apply();});}
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}}
+      compute(){let min=Infinity,max=-Infinity; for(let i=0;i<currentRows;i+=Math.max(1,Math.floor(currentRows/200000))){const v=this.arr[i]; if(v<min)min=v;if(v>max)max=v;} this.min=min; this.max=max; const bins=200, binSize=(max-min)/bins; const counts=new Float32Array(bins); for(let i=0;i<currentRows;i+=Math.max(1,Math.floor(currentRows/200000))){ if(!filtered[i]) continue; const v=Math.min(this.arr[i],max-Number.EPSILON); const b=Math.floor((v-min)/binSize); if(b>=0&&b<bins) counts[b]++; } // CDF
+        const cdf=new Float32Array(bins); let run=0; for(let i=0;i<bins;i++){run+=counts[i]; cdf[i]=run;} const total=run||1; for(let i=0;i<bins;i++) cdf[i]/=total; return {bins,cdf,binSize}; }
+      draw(){this.clear(); const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; const {bins,cdf,binSize}=this.compute(); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); this.ctx.strokeStyle='#4a9eff'; this.ctx.lineWidth=2; this.ctx.beginPath(); for(let i=0;i<bins;i++){ const x=i*(w/bins); const y=h-(cdf[i]*h); if(i===0)this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} this.ctx.stroke(); if(this.threshold!=null){ const x=((this.threshold-this.min)/(this.max-this.min))*w; this.ctx.strokeStyle='#feca57'; this.ctx.beginPath(); this.ctx.moveTo(x,0); this.ctx.lineTo(x,h); this.ctx.stroke(); }
+        this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,h); this.ctx.lineTo(w,h); this.ctx.moveTo(0,0); this.ctx.lineTo(0,h); this.ctx.stroke(); this.ctx.fillStyle='#888'; this.ctx.font='10px -apple-system, sans-serif'; this.ctx.textAlign='center'; for(let i=0;i<=5;i++){ const x=i/5*w; const v=this.min+i/5*(this.max-this.min); this.ctx.fillText(this.fmt(v), x, h+15);} this.ctx.restore(); }
+    }
+
+    class Quantiles extends Chart{constructor(id){super(id);} draw(){this.clear(); const w=this.width-16,h=this.height-20; const probs=[0.05,0.25,0.5,0.75,0.95]; const metrics=['timeSeconds','strength','width','height']; const step=Math.max(1,Math.floor(currentRows/500000)); this.ctx.save(); this.ctx.translate(8,10); this.ctx.fillStyle='#888'; this.ctx.font='12px -apple-system, sans-serif'; this.ctx.fillText('Quantiles (filtered)', 0, 0); metrics.forEach((m,ri)=>{ const xs=[]; for(let p of probs){ xs.push(quantile(m,p,step).toFixed(2)); } this.ctx.fillText(m+': '+xs.join(', '), 0, 20+ri*18); }); this.ctx.restore(); }}
+
+    class Cat2Breakdown extends Chart{constructor(id){super(id);} draw(){this.clear(); const w=this.width-40,h=this.height-50; const step=Math.max(1,Math.floor(currentRows/1000000)); let t0=0,t1=0; for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; if(data.category_2[i]) t1++; else t0++; } t0*=step; t1*=step; const max=Math.max(t0,t1)||1; this.ctx.save(); this.ctx.translate(20,20); this.ctx.fillStyle='#2a2a2a'; this.ctx.fillRect(0,h-(t0/max*h), w/2-10, t0/max*h); this.ctx.fillRect(w/2+10, h-(t1/max*h), w/2-10, t1/max*h); this.ctx.fillStyle='#48dbfb'; this.ctx.fillRect(0,h-(t0/max*h), w/2-10, t0/max*h); this.ctx.fillStyle='#feca57'; this.ctx.fillRect(w/2+10, h-(t1/max*h), w/2-10, t1/max*h); this.ctx.fillStyle='#888'; this.ctx.fillText('False', (w/4), h+15); this.ctx.fillText('True', (3*w/4), h+15); this.ctx.restore(); }}
+
+    function quantile(field,p,step){ const arr=data[field]; const samples=[]; for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; samples.push(arr[i]); } if(samples.length===0) return 0; samples.sort((a,b)=>a-b); const idx=Math.min(samples.length-1, Math.max(0, Math.floor(p*(samples.length-1)))); return samples[idx]; }
+
+    let charts={};
+    function init(){ charts.cdfTime=new CDF('cdfTime', data.timeSeconds, 'time', v=>{const h=Math.floor(v/3600), m=Math.floor((v%3600)/60); return `${h}:${m.toString().padStart(2,'0')}`}); charts.cdfStrength=new CDF('cdfStrength', data.strength, 'strength', v=>v.toFixed(1)); charts.cdfWidth=new CDF('cdfWidth', data.width, 'width', v=>v.toFixed(1)); charts.cdfHeight=new CDF('cdfHeight', data.height, 'height', v=>v.toFixed(2)); charts.quant=new Quantiles('quantiles'); charts.cat2=new Cat2Breakdown('cat2'); drawAll(); }
+    function drawAll(){ Object.values(charts).forEach(c=>c.draw()); updateStats(); }
+    function apply(){ const end=currentRows; let processed=0; function run(){const lim=Math.min(processed+1000000,end); for(let i=processed;i<lim;i++){ let pass=true; if(filters.time && (data.timeSeconds[i] < filters.time[0] || data.timeSeconds[i] >= filters.time[1])) pass=false; if(pass && filters.strength && (data.strength[i] < filters.strength[0] || data.strength[i] >= filters.strength[1])) pass=false; if(pass && filters.width && (data.width[i] < filters.width[0] || data.width[i] >= filters.width[1])) pass=false; if(pass && filters.height && (data.height[i] < filters.height[0] || data.height[i] >= filters.height[1])) pass=false; filtered[i]=pass?1:0; } processed=lim; if(processed<end){ requestIdleCallback(run,{timeout:16}); } else { drawAll(); } } run(); }
+    function updateStats(){ let cnt=0; const step=Math.max(1,Math.floor(currentRows/1000000)); for(let i=0;i<currentRows;i+=step){ if(filtered[i]) cnt++; } cnt*=step; document.getElementById('filtered').textContent = cnt>=1000000? `${(cnt/1000000).toFixed(1)}M` : cnt.toLocaleString(); document.getElementById('selected').textContent = (cnt/currentRows*100).toFixed(1)+'%'; }
+
+    document.getElementById('reset').addEventListener('click', ()=>{ filters={time:null,strength:null,width:null,height:null}; filtered.fill(1); drawAll(); });
+    document.getElementById('export').addEventListener('click', ()=>{ const rows=['timeSeconds,strength,width,height,category_2']; let c=0; for(let i=0;i<currentRows;i++){ if(filtered[i]){ rows.push([data.timeSeconds[i].toFixed(2), data.strength[i].toFixed(2), data.width[i].toFixed(2), data.height[i].toFixed(3), data.category_2[i]===1].join(',')); c++; } } const blob=new Blob([rows.join('\n')],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`cdf_export_${c}.csv`; a.click(); URL.revokeObjectURL(url); });
+
+    gen();
+  </script>
+</body>
+</html>
+
+

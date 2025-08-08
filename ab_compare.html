@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A B Compare – Single File</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0a0a0a;color:#e0e0e0;overflow:hidden}
+    .header{background:#1a1a1a;padding:8px 16px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;margin:8px}
+    .stats{display:flex;gap:16px;font-size:13px}
+    .stats strong{color:#4a9eff}
+    .grid{display:grid;grid-template-columns:1.3fr 1fr;grid-template-rows:1fr 1fr;gap:8px;height:calc(100vh - 90px);padding:8px}
+    .panel{background:#1a1a1a;border-radius:4px;position:relative;padding:8px}
+    .panel-title{font-size:13px;margin-bottom:4px}
+    canvas{position:absolute;top:28px;left:8px;right:8px;bottom:12px}
+    button{background:#4a9eff;border:none;color:#fff;padding:6px 10px;border-radius:3px;cursor:pointer;font-size:12px}
+    button:hover{background:#3a8eef}
+    .seg { display:flex; gap:6px; align-items:center }
+    select{background:#333;color:#e0e0e0;border:1px solid #555;border-radius:3px;font-size:11px;padding:2px 6px}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>A/B Compare</h3>
+    <div class="stats">
+      <span>A: <strong id="aCount">0</strong></span>
+      <span>B: <strong id="bCount">0</strong></span>
+      <span>Lift (A vs B): <strong id="liftSum">0%</strong></span>
+    </div>
+    <div class="seg">
+      <label style="font-size:12px;color:#888">Brush target:</label>
+      <select id="brushTarget"><option value="A" selected>A</option><option value="B">B</option></select>
+      <button id="reset">Reset</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel" style="grid-column:1/2;grid-row:1/3"><div class="panel-title">Histogram (choose field, brush for A/B)</div><canvas id="hist"></canvas><select id="field" style="position:absolute;top:4px;right:8px"><option value="strength" selected>strength</option><option value="width">width</option><option value="height">height</option><option value="timeSeconds">time</option></select></div>
+    <div class="panel"><div class="panel-title">Category_4 Lift (A vs B)</div><canvas id="lift"></canvas></div>
+    <div class="panel"><div class="panel-title">KS Distance (A vs B) per metric</div><canvas id="ks"></canvas></div>
+  </div>
+
+  <script>
+    const ROWS=10000000,BATCH=100000; let data={width:null,height:null,strength:null,timeSeconds:null,category_4:null,category_2:null};
+    let aMask=new Uint8Array(ROWS), bMask=new Uint8Array(ROWS), baseMask=new Uint8Array(ROWS);
+    function normalRandom(m,s){const u1=Math.random(),u2=Math.random();return m+Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*s}
+    function gen(){ data.width=new Float32Array(ROWS); data.height=new Float32Array(ROWS); data.strength=new Float32Array(ROWS); data.timeSeconds=new Float32Array(ROWS); data.category_4=new Uint8Array(ROWS); data.category_2=new Uint8Array(ROWS); let i=0; function step(){ const end=Math.min(i+BATCH,ROWS); for(;i<end;i++){ let w;do{w=normalRandom(Math.random()<0.6?50:150,20)}while(w<1||w>=200); data.width[i]=w; let h;do{h=Math.exp(normalRandom(0.5,0.5))}while(h<0.2||h>=4.8); data.height[i]=h; let s;do{s=-Math.log(1-Math.random())*20}while(s>=100); data.strength[i]=s; const hour=normalRandom(13,4); const t=((hour+24)%24)*3600+Math.random()*3600; data.timeSeconds[i]=Math.max(0,Math.min(86399.999,t)); const p=Math.random(); data.category_4[i]=p<0.4?0:p<0.65?1:p<0.85?2:3; data.category_2[i]=Math.random()<0.55?1:0; aMask[i]=0; bMask[i]=0; baseMask[i]=1; } if(i<ROWS){requestIdleCallback(step,{timeout:16})} else {init();} } step(); }
+
+    class Chart{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d',{alpha:false});this.resize=this.resize.bind(this);this.resize();window.addEventListener('resize',this.resize);} resize(){const r=this.canvas.parentElement.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=(r.width-16)*d;this.canvas.height=(r.height-40)*d;this.canvas.style.width=(r.width-16)+'px';this.canvas.style.height=(r.height-40)+'px';this.ctx.setTransform(d,0,0,d,0,0);this.width=r.width-16;this.height=r.height-40;} clear(){this.ctx.fillStyle='#1a1a1a';this.ctx.fillRect(0,0,this.width,this.height);} }
+
+    class Hist extends Chart{constructor(id){super(id); this.margin={top:10,right:10,bottom:40,left:50}; this.drag=false; this.field='strength'; document.getElementById('field').addEventListener('change',e=>{this.field=e.target.value; this.draw();}); this.canvas.addEventListener('mousedown',e=>this.down(e)); this.canvas.addEventListener('mousemove',e=>this.move(e)); this.canvas.addEventListener('mouseup',e=>this.up());}
+      draw(){ this.clear(); const arr=data[this.field]; let mn=Infinity,mx=-Infinity; const step0=Math.max(1,Math.floor(ROWS/200000)); for(let i=0;i<ROWS;i+=step0){ const v=arr[i]; if(v<mn)mn=v; if(v>mx)mx=v; } const bins=100, bs=(mx-mn)/bins||1; const cBase=new Float32Array(bins), cA=new Float32Array(bins), cB=new Float32Array(bins); const step=Math.max(1,Math.floor(ROWS/300000)); for(let i=0;i<ROWS;i+=step){ const v=Math.min(arr[i],mx-Number.EPSILON); const b=Math.floor((v-mn)/bs); if(b<0||b>=bins) continue; cBase[b]++; if(aMask[i]) cA[b]++; if(bMask[i]) cB[b]++; }
+        const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; const bw=w/bins; const max=Math.max(...cBase,1); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); // base
+        this.ctx.fillStyle='#2a2a2a'; for(let i=0;i<bins;i++){ const bh=(cBase[i]/max)*h; this.ctx.fillRect(i*bw, h-bh, bw-1, bh); }
+        // A overlay
+        this.ctx.fillStyle='rgba(72,219,251,0.85)'; for(let i=0;i<bins;i++){ const bh=(cA[i]/max)*h; this.ctx.fillRect(i*bw, h-bh, bw-1, bh); }
+        // B overlay
+        this.ctx.fillStyle='rgba(254,202,87,0.85)'; for(let i=0;i<bins;i++){ const bh=(cB[i]/max)*h; this.ctx.fillRect(i*bw, h-bh, bw-1, bh); }
+        // selection overlay
+        if(this.sel){ const x1=this.sel[0]*bw, x2=(this.sel[1]+1)*bw; this.ctx.fillStyle='rgba(255,255,255,0.08)'; this.ctx.strokeStyle='#feca57'; this.ctx.fillRect(x1,0,x2-x1,h); this.ctx.strokeRect(x1,0,x2-x1,h); }
+        // axes
+        this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,h); this.ctx.lineTo(w,h); this.ctx.moveTo(0,0); this.ctx.lineTo(0,h); this.ctx.stroke(); this.ctx.restore(); this._meta={mn,mx,bins,bs}; updateCounts(); }
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}} inArea(p){return p.x>=this.margin.left&&p.x<=this.width-this.margin.right&&p.y>=this.margin.top&&p.y<=this.height-this.margin.bottom}
+      down(e){ const p=this.pos(e); if(!this.inArea(p)) return; const w=this.width-this.margin.left-this.margin.right; const x=p.x-this.margin.left; const bin=Math.floor(x/(w/this._meta.bins)); this.drag=true; this.sel=[bin,bin]; this.draw(); }
+      move(e){ if(!this.drag) return; const p=this.pos(e); const w=this.width-this.margin.left-this.margin.right; const x=p.x-this.margin.left; const bin=Math.max(0,Math.min(this._meta.bins-1, Math.floor(x/(w/this._meta.bins)) )); this.sel[1]=bin; this.draw(); }
+      up(){ if(this.drag && this.sel){ const s=Math.min(this.sel[0],this.sel[1]), e=Math.max(this.sel[0],this.sel[1]); const v0=this._meta.mn + s*this._meta.bs, v1=this._meta.mn + (e+1)*this._meta.bs; const target=document.getElementById('brushTarget').value; const arr=data[this.field]; const step=Math.max(1,Math.floor(ROWS/200000)); const mask = target==='A'? aMask : bMask; mask.fill(0); for(let i=0;i<ROWS;i+=step){ const v=arr[i]; if(v>=v0 && v<v1) mask[i]=1; } this.drag=false; this.sel=null; this.draw(); charts.lift.draw(); charts.ks.draw(); }
+    }
+
+    class LiftBars extends Chart{constructor(id){super(id); this.margin={top:20,right:10,bottom:40,left:60};}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; const cats=['A','B','C','D']; const base=[0,0,0,0], A=[0,0,0,0], B=[0,0,0,0]; const step=Math.max(1,Math.floor(ROWS/1000000)); for(let i=0;i<ROWS;i+=step){ base[data.category_4[i]]++; if(aMask[i]) A[data.category_4[i]]++; if(bMask[i]) B[data.category_4[i]]++; } const bTot=base.reduce((x,y)=>x+y,0)||1, aTot=A.reduce((x,y)=>x+y,0)||1, btot=B.reduce((x,y)=>x+y,0)||1; const lift=A.map((v,i)=>((v/aTot)-(base[i]/bTot))*100); const liftB=B.map((v,i)=>((v/btot)-(base[i]/bTot))*100); const max=Math.max(...lift.map(x=>Math.abs(x)),...liftB.map(x=>Math.abs(x)),1); const colors=['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4']; document.getElementById('aCount').textContent=aTot.toLocaleString(); document.getElementById('bCount').textContent=btot.toLocaleString(); document.getElementById('liftSum').textContent=((aTot/bTot - btot/bTot)*100).toFixed(1)+'%';
+        this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); const bw=w/cats.length*0.35, gap=w/cats.length*0.3; for(let i=0;i<4;i++){ const x=i*(bw*2+gap); const ha=(Math.abs(lift[i])/max)*h/2, hb=(Math.abs(liftB[i])/max)*h/2; this.ctx.fillStyle=colors[i]; this.ctx.fillRect(x, h/2 - (lift[i]>=0?ha:0), bw, ha); this.ctx.fillStyle='#888'; this.ctx.fillRect(x+bw+4, h/2 - (liftB[i]>=0?hb:0), bw, hb); this.ctx.fillStyle='#ccc'; this.ctx.font='12px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText(cats[i], x+bw, h+18); }
+        this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,h/2); this.ctx.lineTo(w,h/2); this.ctx.stroke(); this.ctx.restore(); }
+    }
+
+    class KSBar extends Chart{constructor(id){super(id); this.metrics=['timeSeconds','width','height','strength']; this.margin={top:20,right:10,bottom:40,left:60};}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right,h=this.height-this.margin.top-this.margin.bottom; const bars=[]; for(const m of this.metrics){ bars.push(this.ks(m)); } const max=Math.max(...bars,1); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); const bw=w/this.metrics.length*0.7, gap=w/this.metrics.length*0.3; for(let i=0;i<bars.length;i++){ const x=i*(bw+gap); const bh=(bars[i]/max)*h; this.ctx.fillStyle='#4a9eff'; this.ctx.fillRect(x, h-bh, bw, bh); this.ctx.fillStyle='#888'; this.ctx.font='12px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText(this.metrics[i], x+bw/2, h+18); this.ctx.fillText(bars[i].toFixed(2), x+bw/2, h-bh-6);} this.ctx.restore(); }
+      ks(field){ const arr=data[field]; const bins=200; let mn=Infinity,mx=-Infinity; const step0=Math.max(1,Math.floor(ROWS/200000)); for(let i=0;i<ROWS;i+=step0){ const v=arr[i]; if(v<mn)mn=v; if(v>mx)mx=v; } const bs=(mx-mn)/bins||1; const cA=new Float32Array(bins), cB=new Float32Array(bins); const step=Math.max(1,Math.floor(ROWS/300000)); for(let i=0;i<ROWS;i+=step){ const v=Math.min(arr[i],mx-Number.EPSILON); const b=Math.floor((v-mn)/bs); if(b<0||b>=bins) continue; if(aMask[i]) cA[b]++; if(bMask[i]) cB[b]++; } for(let i=1;i<bins;i++){ cA[i]+=cA[i-1]; cB[i]+=cB[i-1]; } const sA=cA[bins-1]||1, sB=cB[bins-1]||1; let ks=0; for(let i=0;i<bins;i++){ const d=Math.abs(cA[i]/sA - cB[i]/sB); if(d>ks) ks=d; } return ks; }
+    }
+
+    let charts={};
+    function init(){ charts.hist=new Hist('hist'); charts.lift=new LiftBars('lift'); charts.ks=new KSBar('ks'); charts.hist.draw(); charts.lift.draw(); charts.ks.draw(); }
+    function updateCounts(){ const a=aMask.reduce((s,v)=>s+v,0), b=bMask.reduce((s,v)=>s+v,0); document.getElementById('aCount').textContent = a.toLocaleString(); document.getElementById('bCount').textContent = b.toLocaleString(); }
+    document.getElementById('reset').addEventListener('click', ()=>{ aMask.fill(0); bMask.fill(0); charts.hist.draw(); charts.lift.draw(); charts.ks.draw(); });
+
+    gen();
+  </script>
+</body>
+</html>
+
+

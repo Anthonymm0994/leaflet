@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Varied Plots – Single File, Canvas2D</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0a0a0a;color:#e0e0e0;overflow:hidden}
+    .header{background:#1a1a1a;padding:8px 16px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;margin:8px}
+    .stats{display:flex;gap:16px;font-size:13px}
+    .stats strong{color:#4a9eff}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:8px;height:calc(100vh - 90px);padding:8px}
+    .panel{background:#1a1a1a;border-radius:4px;position:relative;padding:8px}
+    .panel-title{font-size:13px;margin-bottom:4px}
+    canvas{position:absolute;top:28px;left:8px;right:8px;bottom:12px}
+    button{background:#4a9eff;border:none;color:#fff;padding:6px 10px;border-radius:3px;cursor:pointer;font-size:12px}
+    button:hover{background:#3a8eef}
+    #tooltip{position:fixed;background:rgba(0,0,0,.95);padding:6px 10px;border-radius:3px;border:1px solid #333;font-size:11px;display:none;pointer-events:none;z-index:1000}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>Varied Plots</h3>
+    <div class="stats">
+      <span>Total: <strong>10,000,000</strong></span>
+      <span>Filtered: <strong id="filtered">10,000,000</strong></span>
+      <span>Selected: <strong id="selected">100%</strong></span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="reset">Reset</button>
+      <button id="export">Export CSV</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel"><div class="panel-title">Parallel Coordinates (width, height, strength, angle)</div><canvas id="parallel"></canvas></div>
+    <div class="panel"><div class="panel-title">Violin: strength by category_4</div><canvas id="violin"></canvas></div>
+    <div class="panel"><div class="panel-title">7×24 Heatmap: time vs day</div><canvas id="heatmap"></canvas></div>
+    <div class="panel"><div class="panel-title">Small Multiples Density: width × strength by category_4</div><canvas id="smallmult"></canvas></div>
+  </div>
+
+  <div id="tooltip"></div>
+
+  <script>
+    // -------- Data --------
+    const ROWS=10000000,BATCH=100000; let data={width:null,height:null,strength:null,angle:null,timeSeconds:null,day:null,category_4:null,category_2:null}; let filtered=new Uint8Array(ROWS); let currentRows=ROWS; let filters={width:null,height:null,strength:null,angle:null,time:null,category:new Set(),categoryType:'cat4'};
+    function normalRandom(m,s){const u1=Math.random(),u2=Math.random();return m+Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*s}
+    function generate(){ data.width=new Float32Array(ROWS); data.height=new Float32Array(ROWS); data.strength=new Float32Array(ROWS); data.angle=new Float32Array(ROWS); data.timeSeconds=new Float32Array(ROWS); data.day=new Uint8Array(ROWS); data.category_4=new Uint8Array(ROWS); data.category_2=new Uint8Array(ROWS); let i=0; function step(){ const end=Math.min(i+BATCH,ROWS); for(;i<end;i++){ let w;do{w=normalRandom(Math.random()<0.6?50:150,20)}while(w<1||w>=200); data.width[i]=w; let h;do{h=Math.exp(normalRandom(0.5,0.5))}while(h<0.2||h>=4.8); data.height[i]=h; if(Math.random()<0.5) data.angle[i]=(normalRandom(90,30)+360)%360; else data.angle[i]=(normalRandom(270,30)+360)%360; let s;do{s=-Math.log(1-Math.random())*20}while(s>=100); data.strength[i]=s; const hour=normalRandom(13,4); const t=((hour+24)%24)*3600+Math.random()*3600; data.timeSeconds[i]=Math.max(0,Math.min(86399.999,t)); data.day[i]=Math.floor(Math.random()*7); const p=Math.random(); data.category_4[i]=p<0.4?0:p<0.65?1:p<0.85?2:3; data.category_2[i]=Math.random()<0.55?1:0; filtered[i]=1; } if(i<ROWS){requestIdleCallback(step,{timeout:16})} else {init();} } step(); }
+
+    // -------- Base Chart --------
+    class Chart{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d',{alpha:false});this.resize=this.resize.bind(this);this.resize();window.addEventListener('resize',this.resize);} destroy(){window.removeEventListener('resize',this.resize);} resize(){const r=this.canvas.parentElement.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=(r.width-16)*d;this.canvas.height=(r.height-40)*d;this.canvas.style.width=(r.width-16)+'px';this.canvas.style.height=(r.height-40)+'px';this.ctx.setTransform(d,0,0,d,0,0);this.width=r.width-16;this.height=r.height-40;} clear(){this.ctx.fillStyle='#1a1a1a';this.ctx.fillRect(0,0,this.width,this.height);} }
+
+    // -------- Parallel Coordinates --------
+    class Parallel extends Chart{constructor(id){super(id); this.margin={top:20,right:20,bottom:40,left:40}; this.axes=['width','height','strength','angle']; this.brush=null; this.brushingAxis=-1; this.canvas.addEventListener('mousedown',e=>this.down(e)); this.canvas.addEventListener('mousemove',e=>this.move(e)); this.canvas.addEventListener('mouseup',e=>this.up());}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right, h=this.height-this.margin.top-this.margin.bottom; const xStep=w/(this.axes.length-1); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top);
+        // axis ranges
+        const ranges=this.axes.map(name=>{ let mn=Infinity,mx=-Infinity; const arr=data[name]; const step0=Math.max(1,Math.floor(currentRows/200000)); for(let i=0;i<currentRows;i+=step0){ const v=arr[i]; if(v<mn) mn=v; if(v>mx) mx=v; } return [mn,mx]; });
+        // draw axes
+        this.ctx.strokeStyle='#444'; for(let i=0;i<this.axes.length;i++){ const x=i*xStep; this.ctx.beginPath(); this.ctx.moveTo(x,0); this.ctx.lineTo(x,h); this.ctx.stroke(); this.ctx.fillStyle='#888'; this.ctx.font='12px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText(this.axes[i], x, -6); }
+        // draw polylines (sampled)
+        const step=Math.max(1,Math.floor(currentRows/20000)); this.ctx.globalAlpha=0.05; this.ctx.strokeStyle='#4a9eff'; for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; this.ctx.beginPath(); for(let a=0;a<this.axes.length;a++){ const arr=data[this.axes[a]]; const [mn,mx]=ranges[a]; const x=a*xStep; const y=h - ((arr[i]-mn)/(mx-mn))*h; if(a===0) this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y); } this.ctx.stroke(); } this.ctx.globalAlpha=1;
+        // brush overlay
+        if(this.brush){ const [ax,y1,y2]=this.brush; const x=ax*xStep; this.ctx.fillStyle='rgba(255,255,255,0.08)'; this.ctx.strokeStyle='#feca57'; this.ctx.fillRect(x-10, Math.min(y1,y2), 20, Math.abs(y2-y1)); this.ctx.strokeRect(x-10, Math.min(y1,y2), 20, Math.abs(y2-y1)); }
+        this.ctx.restore(); this._ranges=ranges; this._xStep=xStep; this._plotH=h; }
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}} inArea(p){return p.x>=this.margin.left&&p.x<=this.width-this.margin.right&&p.y>=this.margin.top&&p.y<=this.height-this.margin.bottom}
+      down(e){ const p=this.pos(e); if(!this.inArea(p)) return; const x=p.x-this.margin.left; const ax=Math.round(x/this._xStep); if(ax>=0&&ax<this.axes.length){ this.brushingAxis=ax; this.brush=[ax, p.y-this.margin.top, p.y-this.margin.top]; this.draw(); } }
+      move(e){ if(this.brushingAxis<0) return; const p=this.pos(e); this.brush[2]=Math.max(0, Math.min(this._plotH, p.y-this.margin.top)); this.draw(); }
+      up(){ if(this.brushingAxis>=0 && this.brush){ const [ax,y1,y2]=this.brush; const [mn,mx]=this._ranges[ax]; const aMin=mn + (1 - Math.max(y1,y2)/this._plotH)*(mx-mn); const aMax=mn + (1 - Math.min(y1,y2)/this._plotH)*(mx-mn); const key=this.axes[ax]; filters[key]=[aMin,aMax]; apply(); } this.brushingAxis=-1; }
+    }
+
+    // -------- Violin strength by cat4 --------
+    class Violin extends Chart{constructor(id){super(id); this.margin={top:20,right:20,bottom:40,left:50}; this.selected=new Set(); this.canvas.addEventListener('mousedown',e=>this.click(e));}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right, h=this.height-this.margin.top-this.margin.bottom; const cats=['A','B','C','D']; const colors=['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4'];
+        // histogram per category
+        let mn=Infinity,mx=-Infinity; const step0=Math.max(1,Math.floor(currentRows/200000)); for(let i=0;i<currentRows;i+=step0){ const v=data.strength[i]; if(v<mn)mn=v; if(v>mx)mx=v; } const bins=60, bs=(mx-mn)/bins||1; const H=Array.from({length:4},()=>new Float32Array(bins)); const step=Math.max(1,Math.floor(currentRows/400000)); for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const b=Math.floor((Math.min(data.strength[i],mx-Number.EPSILON)-mn)/bs); const c=data.category_4[i]; if(b>=0&&b<bins) H[c][b]++; }
+        this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); const slot=w/4, mid=slot/2, scale=h/2; for(let c=0;c<4;c++){ const arr=H[c]; const m=Math.max(...arr,1); this.ctx.fillStyle= this.selected.size===0||this.selected.has(c)? colors[c]:'#444'; this.ctx.beginPath(); for(let b=0;b<bins;b++){ const x=mid + (arr[b]/m)*mid; const y=b*(h/bins); if(b===0) this.ctx.moveTo(mid,y); this.ctx.lineTo(x,y);} for(let b=bins-1;b>=0;b--){ const x=mid - (arr[b]/m)*mid; const y=b*(h/bins); this.ctx.lineTo(x,y);} this.ctx.closePath(); this.ctx.translate(c*slot,0); this.ctx.fill(); this.ctx.translate(-c*slot,0); this.ctx.fillStyle='#888'; this.ctx.font='12px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText(cats[c], c*slot+mid, h+18); if(this.selected.has(c)){ this.ctx.strokeStyle='#feca57'; this.ctx.lineWidth=2; this.ctx.strokeRect(c*slot+2,2,slot-4,h-4);} }
+        this.ctx.restore(); }
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}}
+      click(e){ const p=this.pos(e); const w=this.width-this.margin.left-this.margin.right; const slot=w/4; const x=p.x-this.margin.left; const idx=Math.floor(x/slot); if(idx>=0&&idx<4){ if(this.selected.has(idx)) this.selected.delete(idx); else this.selected.add(idx); filters.category.clear(); if(this.selected.size>0 && this.selected.size<4){ this.selected.forEach(c=>filters.category.add(c)); filters.categoryType='cat4'; } else { filters.category.clear(); } apply(); }
+      }
+    }
+
+    // -------- 7×24 heatmap (time vs day) --------
+    class HeatmapTimeDay extends Chart{constructor(id){super(id); this.margin={top:20,right:20,bottom:40,left:50}; this.drag=false; this.sel=[0,86400]; this.canvas.addEventListener('mousedown',e=>this.down(e)); this.canvas.addEventListener('mousemove',e=>this.move(e)); this.canvas.addEventListener('mouseup',e=>this.up());}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right, h=this.height-this.margin.top-this.margin.bottom; const cols=24, rows=7; const cellW=w/cols, cellH=h/rows; const grid=new Float32Array(cols*rows); const step=Math.max(1,Math.floor(currentRows/200000)); for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const hour=Math.floor(data.timeSeconds[i]/3600)%24; const day=data.day[i]; grid[day*cols+hour]++; } const max=Math.max(...grid,1); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); for(let r=0;r<rows;r++){ for(let c=0;c<cols;c++){ const v=grid[r*cols+c]/max; this.ctx.fillStyle=`hsl(${Math.round(220-220*v)},80%,${Math.round(20+50*v)}%)`; this.ctx.fillRect(c*cellW, r*cellH, cellW-1, cellH-1); } } // overlay selection by hour
+        const x1=(this.sel[0]/86400)*w, x2=(this.sel[1]/86400)*w; this.ctx.fillStyle='rgba(255,255,255,0.06)'; this.ctx.strokeStyle='#feca57'; this.ctx.fillRect(Math.min(x1,x2),0,Math.abs(x2-x1),h); this.ctx.strokeRect(Math.min(x1,x2),0,Math.abs(x2-x1),h);
+        this.ctx.fillStyle='#888'; this.ctx.font='10px -apple-system, sans-serif'; this.ctx.textAlign='center'; for(let c=0;c<24;c+=3){ this.ctx.fillText(c.toString().padStart(2,'0'), c*cellW+cellW/2, h+15);} this.ctx.restore(); }
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}} inArea(p){return p.x>=this.margin.left&&p.x<=this.width-this.margin.right&&p.y>=this.margin.top&&p.y<=this.height-this.margin.bottom}
+      down(e){ const p=this.pos(e); if(!this.inArea(p)) return; const x=p.x-this.margin.left; const w=this.width-this.margin.left-this.margin.right; const t=(x/w)*86400; this.drag=true; this.sel=[t,t]; this.draw(); }
+      move(e){ if(!this.drag) return; const p=this.pos(e); const x=p.x-this.margin.left; const w=this.width-this.margin.left-this.margin.right; const t=Math.max(0,Math.min(86399.999,(x/w)*86400)); this.sel[1]=t; this.draw(); }
+      up(){ if(this.drag){ const s=Math.min(this.sel[0],this.sel[1]), e=Math.max(this.sel[0],this.sel[1]); filters.time=[s,e]; apply(); } this.drag=false; }
+    }
+
+    // -------- Small multiples density width×strength by cat4 --------
+    class SmallMultDensity extends Chart{constructor(id){super(id); this.margin={top:20,right:20,bottom:30,left:40}; this.grid=[2,2];}
+      draw(){ this.clear(); const w=this.width-this.margin.left-this.margin.right, h=this.height-this.margin.top-this.margin.bottom; const cols=2, rows=2; const paneW=w/cols, paneH=h/rows; const xBins=60,yBins=40; // ranges
+        let wmn=Infinity,wmx=-Infinity, smn=Infinity,smx=-Infinity; const step0=Math.max(1,Math.floor(currentRows/200000)); for(let i=0;i<currentRows;i+=step0){ const wv=data.width[i], sv=data.strength[i]; if(wv<wmn)wmn=wv; if(wv>wmx)wmx=wv; if(sv<smn)smn=sv; if(sv>smx)smx=sv; }
+        const xSize=(wmx-wmn)/xBins||1, ySize=(smx-smn)/yBins||1; const grids=[new Float32Array(xBins*yBins),new Float32Array(xBins*yBins),new Float32Array(xBins*yBins),new Float32Array(xBins*yBins)]; const step=Math.max(1,Math.floor(currentRows/200000)); for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const cat=data.category_4[i]; const xv=Math.min(data.width[i],wmx-Number.EPSILON); const yv=Math.min(data.strength[i],smx-Number.EPSILON); const xb=Math.floor((xv-wmn)/xSize), yb=Math.floor((yv-smn)/ySize); if(xb>=0&&xb<xBins&&yb>=0&&yb<yBins) grids[cat][yb*xBins+xb]++; }
+        this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); for(let r=0;r<rows;r++){ for(let c=0;c<cols;c++){ const idx=r*cols+c; const grid=grids[idx]; let max=0; for(let k=0;k<grid.length;k++) if(grid[k]>max) max=grid[k]; for(let yy=0;yy<yBins;yy++){ for(let xx=0;xx<xBins;xx++){ const v=grid[yy*xBins+xx]/(max||1); this.ctx.fillStyle=`hsl(${Math.round(220-220*v)},80%,${Math.round(20+50*v)}%)`; this.ctx.fillRect(c*paneW + xx*(paneW/xBins), r*paneH + paneH - (yy+1)*(paneH/yBins), paneW/xBins, paneH/yBins); } } this.ctx.strokeStyle='#333'; this.ctx.strokeRect(c*paneW, r*paneH, paneW, paneH); this.ctx.fillStyle='#888'; this.ctx.font='12px -apple-system, sans-serif'; this.ctx.fillText(['A','B','C','D'][idx], c*paneW+8, r*paneH+16); } }
+        this.ctx.restore(); }
+    }
+
+    // -------- App wiring --------
+    let charts={};
+    function init(){ charts.parallel=new Parallel('parallel'); charts.violin=new Violin('violin'); charts.heat=new HeatmapTimeDay('heatmap'); charts.small=new SmallMultDensity('smallmult'); drawAll(); }
+    function drawAll(){ Object.values(charts).forEach(c=>c.draw()); updateStats(); }
+    function apply(){ const end=currentRows; let processed=0; function run(){ const lim=Math.min(processed+1000000,end); for(let i=processed;i<lim;i++){ let pass=true; if(filters.width && (data.width[i] < filters.width[0] || data.width[i] >= filters.width[1])) pass=false; if(pass && filters.height && (data.height[i] < filters.height[0] || data.height[i] >= filters.height[1])) pass=false; if(pass && filters.strength && (data.strength[i] < filters.strength[0] || data.strength[i] >= filters.strength[1])) pass=false; if(pass && filters.angle){ const [a,b]=filters.angle; const ang=data.angle[i]; if(a<=b){ if(ang<a || ang>=b) pass=false; } else { if(ang>=b && ang<a) pass=false; } } if(pass && filters.time && (data.timeSeconds[i] < filters.time[0] || data.timeSeconds[i] >= filters.time[1])) pass=false; if(pass && filters.category.size>0){ if(!filters.category.has(data.category_4[i])) pass=false; } filtered[i]=pass?1:0; } processed=lim; if(processed<end){ requestIdleCallback(run,{timeout:16}); } else { drawAll(); } } run(); }
+    function updateStats(){ let cnt=0; const step=Math.max(1,Math.floor(currentRows/1000000)); for(let i=0;i<currentRows;i+=step){ if(filtered[i]) cnt++; } cnt*=step; document.getElementById('filtered').textContent = cnt>=1000000? `${(cnt/1000000).toFixed(1)}M` : cnt.toLocaleString(); document.getElementById('selected').textContent = (cnt/currentRows*100).toFixed(1)+'%'; }
+
+    document.getElementById('reset').addEventListener('click', ()=>{ filters={width:null,height:null,strength:null,angle:null,time:null,category:new Set(),categoryType:'cat4'}; filtered.fill(1); drawAll(); });
+    document.getElementById('export').addEventListener('click', ()=>{ const rows=['width,height,strength,angle,timeSeconds,day,category_4,category_2']; let c=0; for(let i=0;i<currentRows;i++){ if(filtered[i]){ rows.push([ data.width[i].toFixed(2), data.height[i].toFixed(3), data.strength[i].toFixed(2), data.angle[i].toFixed(2), data.timeSeconds[i].toFixed(2), data.day[i], ['A','B','C','D'][data.category_4[i]], data.category_2[i]===1 ].join(',')); c++; } } const blob=new Blob([rows.join('\n')],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`varied_plots_export_${c}.csv`; a.click(); URL.revokeObjectURL(url); });
+
+    generate();
+  </script>
+</body>
+</html>
+
+

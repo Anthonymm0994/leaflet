@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insight Explorer – Analytics Plots (Single File, Canvas2D)</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0a0a0a;color:#e0e0e0;overflow:hidden}
+    .header{background:#1a1a1a;padding:8px 16px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;margin:8px}
+    .stats{display:flex;gap:16px;font-size:13px}
+    .stats strong{color:#4a9eff}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:8px;height:calc(100vh - 90px);padding:8px}
+    .panel{background:#1a1a1a;border-radius:4px;position:relative;padding:8px}
+    .panel-title{font-size:13px;margin-bottom:4px}
+    canvas{position:absolute;top:28px;left:8px;right:8px;bottom:12px}
+    button{background:#4a9eff;border:none;color:#fff;padding:6px 10px;border-radius:3px;cursor:pointer;font-size:12px}
+    button:hover{background:#3a8eef}
+    #tooltip{position:fixed;background:rgba(0,0,0,.95);padding:6px 10px;border-radius:3px;border:1px solid #333;font-size:11px;display:none;pointer-events:none;z-index:1000}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>Insight Explorer – Analytics Plots</h3>
+    <div class="stats">
+      <span>Total: <strong>10,000,000</strong></span>
+      <span>Filtered: <strong id="filtered">10,000,000</strong></span>
+      <span>Selected: <strong id="selected">100%</strong></span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button id="reset">Reset</button>
+      <button id="export">Export CSV</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel"><div class="panel-title">Trend: Mean Strength by Time (30m bins)</div><canvas id="trend"></canvas></div>
+    <div class="panel"><div class="panel-title">Rate of Change d/dt (Δ mean per bin)</div><canvas id="roc"></canvas></div>
+    <div class="panel"><div class="panel-title">Lift by Category (Filtered vs Base)</div><canvas id="lift"></canvas></div>
+    <div class="panel"><div class="panel-title">Mutual Information (discretized)</div><canvas id="mi"></canvas></div>
+    <div class="panel"><div class="panel-title">KS Distance by Metric (Filtered vs Base)</div><canvas id="ks"></canvas></div>
+    <div class="panel"><div class="panel-title">Quantile Bands of Strength by Time (P10/P50/P90)</div><canvas id="bands"></canvas></div>
+    <div class="panel"><div class="panel-title">Angle Polar Density (filtered)</div><canvas id="polar"></canvas></div>
+    <div class="panel"><div class="panel-title">Width Distribution</div><canvas id="histW"></canvas></div>
+    <div class="panel"><div class="panel-title">Height Distribution</div><canvas id="histH"></canvas></div>
+  </div>
+
+  <div id="tooltip"></div>
+
+  <script>
+    // -------------------- Data --------------------
+    const ROWS=10000000,BATCH=100000; let data={timeSeconds:null,strength:null,width:null,height:null,angle:null,category_4:null,category_2:null}; let filtered=new Uint8Array(ROWS); let currentRows=ROWS; let filters={time:null,width:null,height:null,strength:null,angle:null,category:new Set()};
+    function normalRandom(m,s){const u1=Math.random(),u2=Math.random();return m+Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*s}
+    function gen(){data.timeSeconds=new Float32Array(ROWS);data.strength=new Float32Array(ROWS);data.width=new Float32Array(ROWS);data.height=new Float32Array(ROWS);data.angle=new Float32Array(ROWS);data.category_4=new Uint8Array(ROWS);data.category_2=new Uint8Array(ROWS); let i=0; function step(){const end=Math.min(i+BATCH,ROWS); for(;i<end;i++){ let w;do{w=normalRandom(Math.random()<0.6?50:150,20)}while(w<1||w>=200); data.width[i]=w; let h;do{h=Math.exp(normalRandom(0.5,0.5))}while(h<0.2||h>=4.8); data.height[i]=h; if(Math.random()<0.5) data.angle[i]=(normalRandom(90,30)+360)%360; else data.angle[i]=(normalRandom(270,30)+360)%360; let s;do{s=-Math.log(1-Math.random())*20}while(s>=100); data.strength[i]=s; const hour=normalRandom(13,4); const t=((hour+24)%24)*3600+Math.random()*3600; data.timeSeconds[i]=Math.max(0,Math.min(86399.999,t)); const p=Math.random(); data.category_4[i]=p<0.4?0:p<0.65?1:p<0.85?2:3; data.category_2[i]=Math.random()<0.55?1:0; filtered[i]=1; } if(i<ROWS){requestIdleCallback(step,{timeout:16})} else {init();}} step(); }
+
+    // -------------------- Base chart --------------------
+    class Chart{constructor(id){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d',{alpha:false});this.resize=this.resize.bind(this);this.resize();window.addEventListener('resize',this.resize);} destroy(){window.removeEventListener('resize',this.resize);} resize(){const r=this.canvas.parentElement.getBoundingClientRect(),d=window.devicePixelRatio||1;this.canvas.width=(r.width-16)*d;this.canvas.height=(r.height-40)*d;this.canvas.style.width=(r.width-16)+'px';this.canvas.style.height=(r.height-40)+'px';this.ctx.setTransform(d,0,0,d,0,0);this.width=r.width-16;this.height=r.height-40;} clear(){this.ctx.fillStyle='#1a1a1a';this.ctx.fillRect(0,0,this.width,this.height);} }
+
+    // -------------------- Trend line --------------------
+    class Trend extends Chart{constructor(id){super(id); this.margin={top:10,right:10,bottom:40,left:50}; this.bins=48; this.selection=null; this.canvas.addEventListener('mousedown',e=>this.down(e)); this.canvas.addEventListener('mousemove',e=>this.move(e)); this.canvas.addEventListener('mouseup',e=>this.up(e));}
+      binStats(){const w=this.bins; const binW=86400/w; const sum=new Float64Array(w), cnt=new Uint32Array(w); const step=Math.max(1,Math.floor(currentRows/500000)); for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const b=Math.floor(Math.min(data.timeSeconds[i],86399.999)/binW); if(b>=0&&b<w){ sum[b]+=data.strength[i]; cnt[b]++; }} const avg=new Float64Array(w); for(let i=0;i<w;i++) avg[i]=cnt[i]? sum[i]/cnt[i]:0; return {avg,cnt}; }
+      draw(){this.clear(); const plotW=this.width-this.margin.left-this.margin.right, plotH=this.height-this.margin.top-this.margin.bottom; const {avg,cnt}=this.binStats(); const maxY=Math.max(...avg,1); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); this.ctx.strokeStyle='#4a9eff'; this.ctx.lineWidth=2; this.ctx.beginPath(); for(let i=0;i<avg.length;i++){ const x=i*(plotW/(this.bins-1)); const y=plotH-(avg[i]/maxY*plotH); if(i===0) this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} this.ctx.stroke(); if(this.selection){ const [s,e]=this.selection; const x1=(s/this.bins)*plotW, x2=((e+1)/this.bins)*plotW; this.ctx.fillStyle='rgba(255,255,255,.08)'; this.ctx.strokeStyle='#feca57'; this.ctx.fillRect(x1,0,x2-x1,plotH); this.ctx.strokeRect(x1,0,x2-x1,plotH);} this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,plotH); this.ctx.lineTo(plotW,plotH); this.ctx.moveTo(0,0); this.ctx.lineTo(0,plotH); this.ctx.stroke(); this.ctx.fillStyle='#888'; this.ctx.font='10px -apple-system, sans-serif'; this.ctx.textAlign='center'; for(let i=0;i<=6;i++){ const x=i/6*plotW; const h=Math.floor((i/6*24)); this.ctx.fillText(`${h}:00`, x, plotH+15);} this.ctx.restore(); }
+      inArea(p){return p.x>=this.margin.left && p.x<=this.width-this.margin.right && p.y>=this.margin.top && p.y<=this.height-this.margin.bottom;}
+      pos(e){const r=this.canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*(this.width/r.width),y:(e.clientY-r.top)*(this.height/r.height)}}
+      down(e){const p=this.pos(e); if(!this.inArea(p)) return; this.drag=true; const x=p.x-this.margin.left; const b=Math.floor(x/((this.width-this.margin.left-this.margin.right)/this.bins)); this.start=b; this.selection=[b,b]; this.draw(); }
+      move(e){if(!this.drag) return; const p=this.pos(e); const x=p.x-this.margin.left; const b=Math.max(0,Math.min(this.bins-1, Math.floor(x/((this.width-this.margin.left-this.margin.right)/this.bins)) )); this.selection=[Math.min(this.start,b), Math.max(this.start,b)]; this.draw(); }
+      up(){ if(this.drag && this.selection){ const binW=86400/this.bins; const s=this.selection[0]*binW, e=(this.selection[1]+1)*binW; filters.time=[s,e]; apply(); } this.drag=false; }
+    }
+
+    // -------------------- Rate of Change --------------------
+    class ROC extends Chart{constructor(id,trend){super(id); this.trend=trend; this.margin={top:10,right:10,bottom:40,left:50};}
+      draw(){this.clear(); const plotW=this.width-this.margin.left-this.margin.right, plotH=this.height-this.margin.top-this.margin.bottom; const {avg}=this.trend.binStats(); const roc=new Float64Array(avg.length); for(let i=1;i<avg.length;i++) roc[i]=avg[i]-avg[i-1]; const maxY=Math.max(...roc.map(v=>Math.abs(v)),1); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); this.ctx.strokeStyle='#48dbfb'; this.ctx.lineWidth=2; this.ctx.beginPath(); for(let i=0;i<roc.length;i++){ const x=i*(plotW/(roc.length-1)); const y=plotH-( (roc[i]/(maxY||1)*0.5+0.5)*plotH ); if(i===0) this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} this.ctx.stroke(); this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,plotH/2); this.ctx.lineTo(plotW,plotH/2); this.ctx.stroke(); this.ctx.restore(); }
+    }
+
+    // -------------------- Lift by category --------------------
+    class Lift extends Chart{constructor(id){super(id); this.margin={top:20,right:10,bottom:40,left:60};}
+      draw(){this.clear(); const width=this.width-this.margin.left-this.margin.right, height=this.height-this.margin.top-this.margin.bottom; let base=[0,0,0,0], filt=[0,0,0,0]; const step=Math.max(1,Math.floor(currentRows/1000000)); for(let i=0;i<currentRows;i+=step){ base[data.category_4[i]]++; if(filtered[i]) filt[data.category_4[i]]++; } const baseTot=base.reduce((a,b)=>a+b,0)||1, filtTot=filt.reduce((a,b)=>a+b,0)||1; const lift=filt.map((v,i)=> (v/filtTot - base[i]/baseTot)*100 ); const max=Math.max(...lift.map(v=>Math.abs(v)),1); const colors=['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4']; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); const barW=width/4*0.7, gap=width/4*0.3; for(let i=0;i<4;i++){ const x=i*(barW+gap); const h=(Math.abs(lift[i])/max)*height/2; this.ctx.fillStyle= lift[i]>=0? colors[i]:'#666'; const y=height/2 - h*(lift[i]>=0?1:-1); this.ctx.fillRect(x, y, barW, h); this.ctx.fillStyle='#888'; this.ctx.font='12px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText(['A','B','C','D'][i], x+barW/2, height+18); this.ctx.fillText(lift[i].toFixed(1)+'%', x+barW/2, y-6); } this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,height/2); this.ctx.lineTo(width,height/2); this.ctx.stroke(); this.ctx.restore(); }
+    }
+
+    // -------------------- Mutual Information (discretized) --------------------
+    class MIHeatmap extends Chart{constructor(id){super(id); this.margin={top:30,right:10,bottom:10,left:70}; this.fields=['timeSeconds','width','height','strength']; this.bins=20;}
+      draw(){this.clear(); const n=this.fields.length; const w=this.width-this.margin.left-this.margin.right, h=this.height-this.margin.top-this.margin.bottom; const cell=Math.min(w,h)/n; const startX=this.margin.left, startY=this.margin.top; const step=Math.max(1,Math.floor(currentRows/200000)); const cols=this.fields.map(f=>data[f]); const ranges=this.fields.map((f,idx)=>{ let mn=Infinity,mx=-Infinity; for(let i=0;i<currentRows;i+=step){ const v=cols[idx][i]; if(v<mn) mn=v; if(v>mx) mx=v; } return [mn,mx]; }); const bins=this.bins; const grids=Array.from({length:n},()=>Array.from({length:n},()=>new Float64Array(bins*bins))); const marg=Array.from({length:n},()=>new Float64Array(bins)); let total=0; for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; total++; for(let a=0;a<n;a++){ const va=Math.min(cols[a][i], ranges[a][1]-Number.EPSILON); const ba=Math.floor((va-ranges[a][0])/((ranges[a][1]-ranges[a][0])/bins)); marg[a][ba]++; for(let b=a;b<n;b++){ const vb=Math.min(cols[b][i], ranges[b][1]-Number.EPSILON); const bb=Math.floor((vb-ranges[b][0])/((ranges[b][1]-ranges[b][0])/bins)); grids[a][b][ba*bins+bb]++; if(a!==b) grids[b][a][bb*bins+ba]++; } } } const mi=Array.from({length:n},()=>new Float64Array(n)); for(let a=0;a<n;a++){ const paSum=marg[a].reduce((x,y)=>x+y,0)||1; const pa=marg[a].map(v=>v/paSum); for(let b=0;b<n;b++){ const pbSum=marg[b].reduce((x,y)=>x+y,0)||1; const pb=marg[b].map(v=>v/pbSum); const g=grids[a][b]; const denom=(ranges[a][1]-ranges[a][0])*(ranges[b][1]-ranges[b][0]); let s=0; for(let i=0;i<bins;i++){ for(let j=0;j<bins;j++){ const pxy=g[i*bins+j]/(total||1); if(pxy<=0) continue; const px=pa[i]||1e-12, py=pb[j]||1e-12; s += pxy * Math.log(pxy/(px*py)); } } mi[a][b]=s; } } const maxMI=Math.max(...mi.flat()); this.ctx.save(); this.ctx.translate(startX,startY); for(let r=0;r<n;r++){ for(let c=0;c<n;c++){ const v=mi[r][c]/(maxMI||1); const col=`hsl(${Math.round(220-220*v)},80%,${Math.round(20+50*v)}%)`; this.ctx.fillStyle=col; this.ctx.fillRect(c*cell, r*cell, cell-1, cell-1); this.ctx.fillStyle='#111'; this.ctx.font='11px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.textBaseline='middle'; this.ctx.fillText(mi[r][c].toFixed(2), c*cell+cell/2, r*cell+cell/2); } } this.ctx.fillStyle='#888'; this.ctx.font='12px -apple-system, sans-serif'; for(let i=0;i<n;i++){ this.ctx.fillText(this.fields[i], i*cell+cell/2, -8); this.ctx.save(); this.ctx.translate(-10, i*cell+cell/2); this.ctx.rotate(-Math.PI/2); this.ctx.fillText(this.fields[i], 0, 0); this.ctx.restore(); } this.ctx.restore(); }
+    }
+
+    // -------------------- KS distances --------------------
+    class KSBar extends Chart{constructor(id){super(id); this.metrics=['timeSeconds','width','height','strength']; this.margin={top:20,right:10,bottom:40,left:60};}
+      draw(){this.clear(); const w=this.width-this.margin.left-this.margin.right, h=this.height-this.margin.top-this.margin.bottom; const bars=[]; for(let m of this.metrics){ bars.push(this.ksMetric(m)); } const max=Math.max(...bars,1); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); const barW=w/this.metrics.length*0.7, gap=w/this.metrics.length*0.3; for(let i=0;i<bars.length;i++){ const x=i*(barW+gap); const bh=(bars[i]/max)*h; this.ctx.fillStyle='#4a9eff'; this.ctx.fillRect(x, h-bh, barW, bh); this.ctx.fillStyle='#888'; this.ctx.font='12px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText(this.metrics[i], x+barW/2, h+18); this.ctx.fillText(bars[i].toFixed(2), x+barW/2, h-bh-6); } this.ctx.restore(); }
+      ksMetric(field){ const arr=data[field]; const bins=200; let mn=Infinity,mx=-Infinity; const step0=Math.max(1,Math.floor(currentRows/200000)); for(let i=0;i<currentRows;i+=step0){ const v=arr[i]; if(v<mn)mn=v; if(v>mx)mx=v; } const binSize=(mx-mn)/bins||1; const cf=new Float32Array(bins), cU=new Float32Array(bins); const step=Math.max(1,Math.floor(currentRows/500000)); let totF=0, totU=0; for(let i=0;i<currentRows;i+=step){ const v=Math.min(arr[i], mx-Number.EPSILON); const b=Math.floor((v-mn)/binSize); cU[b]++; totU++; if(filtered[i]){ cf[b]++; totF++; } } // CDFs
+        for(let i=1;i<bins;i++){ cf[i]+=cf[i-1]; cU[i]+=cU[i-1]; } const sU=cU[bins-1]||1, sF=cf[bins-1]||1; let ks=0; for(let i=0;i<bins;i++){ const d=Math.abs((cf[i]/sF)-(cU[i]/sU)); if(d>ks) ks=d; } return ks; }
+    }
+
+    // -------------------- Quantile bands --------------------
+    class Bands extends Chart{constructor(id){super(id); this.margin={top:10,right:10,bottom:40,left:50}; this.bins=48;}
+      draw(){this.clear(); const plotW=this.width-this.margin.left-this.margin.right, plotH=this.height-this.margin.top-this.margin.bottom; const b=this.bins, binW=86400/b; const q10=new Float32Array(b), q50=new Float32Array(b), q90=new Float32Array(b);
+        const step=Math.max(1,Math.floor(currentRows/300000)); const buckets=Array.from({length:b},()=>[]);
+        for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const bi=Math.floor(Math.min(data.timeSeconds[i],86399.999)/binW); if(bi>=0&&bi<b){ buckets[bi].push(data.strength[i]); } }
+        for(let i=0;i<b;i++){ const arr=buckets[i]; if(arr.length){ arr.sort((a,b)=>a-b); const n=arr.length-1; const idx=(p)=>arr[Math.max(0,Math.min(n,Math.floor(n*p)))]; q10[i]=idx(0.1); q50[i]=idx(0.5); q90[i]=idx(0.9); } }
+        const maxY=Math.max(...q90,1); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); // band
+        this.ctx.fillStyle='rgba(74,158,255,0.25)'; this.ctx.beginPath(); for(let i=0;i<b;i++){ const x=i*(plotW/(b-1)); const y=plotH-(q90[i]/maxY*plotH); if(i===0) this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} for(let i=b-1;i>=0;i--){ const x=i*(plotW/(b-1)); const y=plotH-(q10[i]/maxY*plotH); this.ctx.lineTo(x,y);} this.ctx.closePath(); this.ctx.fill(); // median
+        this.ctx.strokeStyle='#4a9eff'; this.ctx.lineWidth=2; this.ctx.beginPath(); for(let i=0;i<b;i++){ const x=i*(plotW/(b-1)); const y=plotH-(q50[i]/maxY*plotH); if(i===0) this.ctx.moveTo(x,y); else this.ctx.lineTo(x,y);} this.ctx.stroke(); this.ctx.restore(); }
+    }
+
+    // -------------------- Polar density --------------------
+    class Polar extends Chart{constructor(id){super(id);} draw(){this.clear(); const cx=this.width/2, cy=this.height/2, R=Math.min(cx,cy)-20, r0=R*0.35; const bins=120, binSize=360/bins; const counts=new Float32Array(bins); const step=Math.max(1,Math.floor(currentRows/300000)); for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const b=Math.floor(data.angle[i]/binSize)%bins; counts[b]++; } const max=Math.max(...counts,1); this.ctx.save(); for(let i=0;i<bins;i++){ const a1=(i*binSize-90)*Math.PI/180, a2=((i+1)*binSize-90)*Math.PI/180; const scale=(counts[i]/max); const r=r0+scale*(R-r0); this.ctx.fillStyle='hsl('+Math.round(200-200*scale)+',80%,'+(25+45*scale)+'%)'; this.ctx.beginPath(); this.ctx.arc(cx,cy,r0,a1,a2); this.ctx.arc(cx,cy,r,a2,a1,true); this.ctx.closePath(); this.ctx.fill(); } this.ctx.restore(); }
+    }
+
+    // -------------------- Simple hist (for reference) --------------------
+    class Hist extends Chart{constructor(id,arr,label,fmt){super(id); this.arr=arr; this.label=label; this.fmt=fmt||((v)=>v.toFixed(2)); this.margin={top:10,right:10,bottom:40,left:50};}
+      draw(){this.clear(); const w=this.width-this.margin.left-this.margin.right, h=this.height-this.margin.top-this.margin.bottom, bins=50; let mn=Infinity,mx=-Infinity; const step0=Math.max(1,Math.floor(currentRows/200000)); for(let i=0;i<currentRows;i+=step0){ const v=this.arr[i]; if(v<mn)mn=v; if(v>mx)mx=v; } const bs=(mx-mn)/bins||1; const c=new Float32Array(bins); const step=Math.max(1,Math.floor(currentRows/300000)); for(let i=0;i<currentRows;i+=step){ if(!filtered[i]) continue; const v=Math.min(this.arr[i], mx-Number.EPSILON); const b=Math.floor((v-mn)/bs); if(b>=0&&b<bins) c[b]++; } const max=Math.max(...c,1); this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top); const bw=w/bins; this.ctx.fillStyle='#4a9eff'; for(let i=0;i<bins;i++){ const bh=(c[i]/max)*h; this.ctx.fillRect(i*bw, h-bh, bw-1, bh); } this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,h); this.ctx.lineTo(w,h); this.ctx.moveTo(0,0); this.ctx.lineTo(0,h); this.ctx.stroke(); this.ctx.fillStyle='#888'; this.ctx.font='10px -apple-system, sans-serif'; this.ctx.textAlign='center'; for(let i=0;i<=5;i++){ const x=i/5*w; const v=mn+i/5*(mx-mn); this.ctx.fillText(this.fmt(v), x, h+15);} this.ctx.restore(); }
+    }
+
+    // -------------------- Wiring --------------------
+    let charts={};
+    function init(){ charts.trend=new Trend('trend'); charts.roc=new ROC('roc', charts.trend); charts.lift=new Lift('lift'); charts.mi=new MIHeatmap('mi'); charts.ks=new KSBar('ks'); charts.bands=new Bands('bands'); charts.polar=new Polar('polar'); charts.hw=new Hist('histW', data.width, 'width', v=>v.toFixed(1)); charts.hh=new Hist('histH', data.height, 'height', v=>v.toFixed(2)); drawAll(); }
+    function drawAll(){ Object.values(charts).forEach(c=>c.draw()); updateStats(); }
+    function apply(){ const end=currentRows; let processed=0; function run(){ const lim=Math.min(processed+1000000,end); for(let i=processed;i<lim;i++){ let pass=true; if(filters.time && (data.timeSeconds[i] < filters.time[0] || data.timeSeconds[i] >= filters.time[1])) pass=false; if(pass && filters.width && (data.width[i] < filters.width[0] || data.width[i] >= filters.width[1])) pass=false; if(pass && filters.height && (data.height[i] < filters.height[0] || data.height[i] >= filters.height[1])) pass=false; if(pass && filters.strength && (data.strength[i] < filters.strength[0] || data.strength[i] >= filters.strength[1])) pass=false; if(pass && filters.angle){ const [a,b]=filters.angle; const ang=data.angle[i]; if(a<=b){ if(ang<a || ang>=b) pass=false; } else { if(ang>=b && ang<a) pass=false; } } if(pass && filters.category.size>0){ if(!filters.category.has(data.category_4[i])) pass=false; } filtered[i]=pass?1:0; } processed=lim; if(processed<end){ requestIdleCallback(run,{timeout:16}); } else { drawAll(); } } run(); }
+    function updateStats(){ let cnt=0; const step=Math.max(1,Math.floor(currentRows/1000000)); for(let i=0;i<currentRows;i+=step){ if(filtered[i]) cnt++; } cnt*=step; document.getElementById('filtered').textContent = cnt>=1000000? `${(cnt/1000000).toFixed(1)}M` : cnt.toLocaleString(); document.getElementById('selected').textContent = (cnt/currentRows*100).toFixed(1)+'%'; }
+
+    document.getElementById('reset').addEventListener('click', ()=>{ filters={time:null,width:null,height:null,strength:null,angle:null,category:new Set()}; filtered.fill(1); drawAll(); });
+    document.getElementById('export').addEventListener('click', ()=>{ const rows=['timeSeconds,strength,width,height,angle,category_4,category_2']; let c=0; for(let i=0;i<currentRows;i++){ if(filtered[i]){ rows.push([ data.timeSeconds[i].toFixed(2), data.strength[i].toFixed(2), data.width[i].toFixed(2), data.height[i].toFixed(3), data.angle[i].toFixed(2), ['A','B','C','D'][data.category_4[i]], data.category_2[i]===1 ].join(',')); c++; } } const blob=new Blob([rows.join('\n')],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`insight_export_${c}.csv`; a.click(); URL.revokeObjectURL(url); });
+
+    gen();
+  </script>
+</body>
+</html>
+
+
