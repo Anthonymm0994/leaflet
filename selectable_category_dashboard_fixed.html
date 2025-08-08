@@ -244,6 +244,10 @@
         let charts = {};
         let statsVisible = false;
         let miniMode = false;
+        // Persist selections and filters when toggling mini mode
+        let savedMegaSelections = null;
+        let savedMegaBinData = null;
+        let savedMegaFilters = null;
         
         // Box-Muller transform for normal distribution
         function normalRandom(mean, stddev) {
@@ -273,12 +277,21 @@
                 
                 for (; i < end; i++) {
                     // Width: multimodal distribution (peaks at 50 and 150)
-                    const widthMode = Math.random() < 0.6 ? 50 : 150;
-                    data.width[i] = Math.max(1, Math.min(200, normalRandom(widthMode, 20)));
+                    // Sample from a truncated normal: [1, 200)
+                    let widthVal;
+                    do {
+                        const widthMode = Math.random() < 0.6 ? 50 : 150;
+                        widthVal = normalRandom(widthMode, 20);
+                    } while (widthVal < 1 || widthVal >= 200);
+                    data.width[i] = widthVal;
                     
-                    // Height: log-normal distribution
-                    const logHeight = normalRandom(0.5, 0.5);
-                    data.height[i] = Math.max(0.2, Math.min(4.8, Math.exp(logHeight)));
+                    // Height: truncated log-normal distribution in [0.2, 4.8)
+                    let heightVal;
+                    do {
+                        const logHeight = normalRandom(0.5, 0.5);
+                        heightVal = Math.exp(logHeight);
+                    } while (heightVal < 0.2 || heightVal >= 4.8);
+                    data.height[i] = heightVal;
                     
                     // Angle: twin peaks at 90° and 270°
                     if (Math.random() < 0.5) {
@@ -287,8 +300,12 @@
                         data.angle[i] = (normalRandom(270, 30) + 360) % 360;
                     }
                     
-                    // Strength: exponential distribution
-                    data.strength[i] = Math.min(100, -Math.log(1 - Math.random()) * 20);
+                    // Strength: truncated exponential in [0, 100)
+                    let strengthVal;
+                    do {
+                        strengthVal = -Math.log(1 - Math.random()) * 20;
+                    } while (strengthVal >= 100);
+                    data.strength[i] = strengthVal;
                     
                     // Categories with non-uniform distribution
                     const catProb = Math.random();
@@ -334,6 +351,9 @@
             
             batch();
         }
+
+        // requestIdleCallback fallback for broader browser support
+        const requestIdle = window.requestIdleCallback || function (cb) { return setTimeout(() => cb({ timeRemaining: () => 0 }), 0); };
         
         // Pre-bin data for performance
         function prebinData() {
@@ -371,16 +391,30 @@
         
         function binData(arr, min, max, numBins) {
             const bins = new Array(numBins).fill(null).map(() => []);
-            const binSize = (max - min) / numBins;
+            let range = max - min;
+            if (range <= 0) {
+                // Degenerate range, place everything in the first bin
+                for (let i = 0; i < arr.length; i++) bins[0].push(i);
+                return { bins, binSize: 1, min, max, maxCount: arr.length };
+            }
+            const binSize = range / numBins;
             
             for (let i = 0; i < arr.length; i++) {
-                const bin = Math.floor((arr[i] - min) / binSize);
+                // Treat max as exclusive to avoid edge spikes
+                const value = Math.min(arr[i], max - Number.EPSILON);
+                const bin = Math.floor((value - min) / binSize);
 
                 // Only clamp to prevent out-of-bounds, don't force into last bin
                 if (bin >= 0 && bin < numBins) bins[bin].push(i);
             }
-    
-            return { bins, binSize, min, max };
+            
+            // Compute a fixed max count for this dataset to stabilize y-scale
+            let maxCount = 0;
+            for (let i = 0; i < bins.length; i++) {
+                if (bins[i].length > maxCount) maxCount = bins[i].length;
+            }
+
+            return { bins, binSize, min, max, maxCount };
         }
 
         function binAngleData() {
@@ -402,8 +436,21 @@
             return { bins, binSize, numBins, maxCount };
         }
         
+        // Clean up existing charts to prevent listener leaks
+        function destroyCharts() {
+            if (!charts) return;
+            Object.values(charts).forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            });
+            charts = {};
+        }
+
         // Initialize all charts
         function initCharts() {
+            // Ensure previous instances are cleaned up before creating new ones
+            destroyCharts();
             charts.width = new Histogram('widthCanvas', binCache.width, 'Width', v => v.toFixed(2));
             charts.height = new Histogram('heightCanvas', binCache.height, 'Height', v => v.toFixed(2));
             charts.angle = new AngleChart('angleCanvas');
@@ -424,14 +471,22 @@
                 this.isDragging = false;
                 this.selection = null;
                 
+                // Bind handlers so we can remove them on destroy
+                this._onResize = this.resize.bind(this);
+                this._handleMouseDown = e => this.onMouseDown(e);
+                this._handleMouseMove = e => this.onMouseMove(e);
+                this._handleMouseUp = e => this.onMouseUp(e);
+                this._handleMouseLeave = e => { this.onMouseUp(e); document.getElementById('tooltip').style.display = 'none'; };
+                this._handleClick = e => this.onClick(e);
+
                 this.resize();
-                window.addEventListener('resize', () => this.resize());
+                window.addEventListener('resize', this._onResize);
                 
-                this.canvas.addEventListener('mousedown', e => this.onMouseDown(e));
-                this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
-                this.canvas.addEventListener('mouseup', e => this.onMouseUp(e));
-                this.canvas.addEventListener('mouseleave', e => { this.onMouseUp(e); document.getElementById('tooltip').style.display = 'none'; });
-                this.canvas.addEventListener('click', e => this.onClick(e));
+                this.canvas.addEventListener('mousedown', this._handleMouseDown);
+                this.canvas.addEventListener('mousemove', this._handleMouseMove);
+                this.canvas.addEventListener('mouseup', this._handleMouseUp);
+                this.canvas.addEventListener('mouseleave', this._handleMouseLeave);
+                this.canvas.addEventListener('click', this._handleClick);
             }
             
             resize() {
@@ -441,7 +496,8 @@
                 this.canvas.height = (rect.height - 36) * dpr;
                 this.canvas.style.width = (rect.width - 16) + 'px';
                 this.canvas.style.height = (rect.height - 36) + 'px';
-                this.ctx.scale(dpr, dpr);
+                // Avoid compounding transforms on repeated resizes
+                this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                 this.width = rect.width - 16;
                 this.height = rect.height - 36;
             }
@@ -487,6 +543,19 @@
             onMouseMove(e) {}
             onMouseUp(e) {}
         }
+        // Add destroy to base Chart
+        Chart.prototype.destroy = function destroy() {
+            try {
+                window.removeEventListener('resize', this._onResize);
+                if (this.canvas) {
+                    this.canvas.removeEventListener('mousedown', this._handleMouseDown);
+                    this.canvas.removeEventListener('mousemove', this._handleMouseMove);
+                    this.canvas.removeEventListener('mouseup', this._handleMouseUp);
+                    this.canvas.removeEventListener('mouseleave', this._handleMouseLeave);
+                    this.canvas.removeEventListener('click', this._handleClick);
+                }
+            } catch (_) {}
+        };
         
         // Histogram implementation
         class Histogram extends Chart {
@@ -497,6 +566,7 @@
                 this.formatter = formatter;
                 this.margin = { top: 10, right: 10, bottom: 40, left: 50 };
                 this.isInteracting = false;
+                this._drawScheduled = false;
             }
             
             getFilterKey() {
@@ -511,21 +581,17 @@
                 const bins = this.binData.bins;
                 const barWidth = width / bins.length;
                 
-                // Calculate heights with sampling for performance
+                // Calculate heights with sampling for performance once per filtered version
                 const counts = new Float32Array(bins.length);
                 const filteredCounts = new Float32Array(bins.length);
-                
                 for (let i = 0; i < bins.length; i++) {
                     const binIndices = bins[i];
                     counts[i] = binIndices.length;
-                    
-                    // Sample for large bins
                     if (binIndices.length > 1000) {
                         let sampled = 0;
                         const sampleSize = Math.min(1000, binIndices.length);
-                        const step = Math.floor(binIndices.length / sampleSize);
-                        
-                        for (let j = 0; j < binIndices.length; j += step) {
+                        const step = Math.max(1, Math.floor(binIndices.length / sampleSize));
+                        for (let j = 0; j < binIndices.length && sampled < sampleSize; j += step) {
                             if (filteredIndices[binIndices[j]]) sampled++;
                         }
                         filteredCounts[i] = (sampled / sampleSize) * binIndices.length;
@@ -534,7 +600,8 @@
                     }
                 }
                 
-                let maxCount = Math.max(...counts);
+                // Use fixed max count from binning to keep y-scale stable
+                const maxCount = this.binData.maxCount || Math.max(...counts);
                 
                 this.ctx.save();
                 this.ctx.translate(this.margin.left, this.margin.top);
@@ -614,6 +681,7 @@
                 }
                 
                 this.ctx.restore();
+                this.lastFilteredCounts = filteredCounts;
             }
             
             isInChartArea(pos) {
@@ -650,12 +718,11 @@
                         this.draw();
                     }
                 }
-                
-                // Tooltip
+                 // Tooltip
                 if (this.isInChartArea(pos) && x >= 0 && x <= width) {
                     const bin = Math.floor(x / (width / this.binData.bins.length));
                     if (bin >= 0 && bin < this.binData.bins.length) {
-                        const count = this.binData.bins[bin].filter(idx => filteredIndices[idx]).length;
+                        const count = this.lastFilteredCounts ? this.lastFilteredCounts[bin] : this.binData.bins[bin].filter(idx => filteredIndices[idx]).length;
                         const start = this.binData.min + bin * this.binData.binSize;
                         const end = start + this.binData.binSize;
                         
@@ -687,6 +754,8 @@
                 this.selection = null;
                 this.draw();
             }
+
+            // requestDraw removed in revert
         }
         
         // Time chart
@@ -731,19 +800,19 @@
                 const maxCount = binCache.angle.maxCount;
                 const filteredBinCounts = new Array(bins.length);
                 
-                // Calculate filtered counts for display
+                 // Calculate filtered counts for display
                 for (let i = 0; i < bins.length; i++) {
                     const binIndices = bins[i];
                     let filteredCount;
                     
-                    if (binIndices.length > 1000) {
-                        let filteredSample = 0;
-                        const sampleSize = 1000;
-                        const step = Math.floor(binIndices.length / sampleSize);
-                        for (let j = 0; j < binIndices.length; j += step) {
-                            if (filteredIndices[binIndices[j]]) filteredSample++;
-                        }
-                        filteredCount = (filteredSample / sampleSize) * binIndices.length;
+                     if (binIndices.length > 1000) {
+                         let filteredSample = 0;
+                         const sampleSize = 1000;
+                         const step = Math.max(1, Math.floor(binIndices.length / sampleSize));
+                         for (let j = 0; j < binIndices.length && filteredSample < sampleSize; j += step) {
+                             if (filteredIndices[binIndices[j]]) filteredSample++;
+                         }
+                         filteredCount = (filteredSample / sampleSize) * binIndices.length;
                     } else {
                         filteredCount = binIndices.filter(idx => filteredIndices[idx]).length;
                     }
@@ -961,12 +1030,12 @@
                 }
                 
                 // Tooltip
-                if (dist >= radius * 0.3 && dist <= radius) {
+                 if (dist >= radius * 0.3 && dist <= radius) {
                     const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
                     const normalizedAngle = (angle + 360) % 360;
                     const bin = Math.floor(normalizedAngle / binCache.angle.binSize);
                     
-                    const count = binCache.angle.bins[bin].filter(idx => filteredIndices[idx]).length;
+                     const count = filteredBinCounts[bin];
                     
                     const tooltip = document.getElementById('tooltip');
                     tooltip.style.display = 'block';
@@ -1400,7 +1469,7 @@
                 processed = batchEnd;
                 
                 if (processed < currentRows) {
-                    requestIdleCallback(processBatch, { timeout: 16 });
+                    requestIdle(processBatch, { timeout: 16 });
                 } else {
                     updateStats();
                     updateRanges();
@@ -1675,17 +1744,25 @@
             
             // Convert old bin indices to data values
             const oldStartValue = oldBinData.min + oldSelection[0] * oldBinData.binSize;
+            // oldEndValue is an exclusive upper bound in the original selection
             const oldEndValue = oldBinData.min + (oldSelection[1] + 1) * oldBinData.binSize;
             
             // Convert data values to new bin indices
-            const newStartBin = Math.floor((oldStartValue - newBinData.min) / newBinData.binSize);
-            const newEndBin = Math.floor((oldEndValue - newBinData.min) / newBinData.binSize);
+            const rawStart = (oldStartValue - newBinData.min) / newBinData.binSize;
+            const rawEndExclusive = (oldEndValue - newBinData.min) / newBinData.binSize;
+            
+            // Start bin is inclusive -> floor
+            let newStartBin = Math.floor(rawStart);
+            // End bin is inclusive, but we have an exclusive upper bound -> ceil(exclusive) - 1
+            let newEndBin = Math.ceil(rawEndExclusive) - 1;
             
             // Clamp to valid range
-            const clampedStart = Math.max(0, Math.min(newStartBin, newBinData.bins.length - 1));
-            const clampedEnd = Math.max(0, Math.min(newEndBin, newBinData.bins.length - 1));
+            newStartBin = Math.max(0, Math.min(newStartBin, newBinData.bins.length - 1));
+            newEndBin = Math.max(0, Math.min(newEndBin, newBinData.bins.length - 1));
             
-            return [clampedStart, clampedEnd];
+            if (newEndBin < newStartBin) newEndBin = newStartBin;
+            
+            return [newStartBin, newEndBin];
         }
         
         // Toggle mini mode - data isolation toggle
@@ -1698,18 +1775,20 @@
             
             if (!miniMode) {
                 // Store current selections and bin data from mega mode
+                savedMegaSelections = {};
+                savedMegaBinData = {};
+                savedMegaFilters = cloneFilters(filters);
                 Object.keys(charts).forEach(key => {
                     const chart = charts[key];
                     if (chart.selection) {
-                        oldSelections[key] = [...chart.selection];
+                        savedMegaSelections[key] = [...chart.selection];
                     }
                     if (chart.binData) {
-                        oldBinData[key] = { ...chart.binData };
+                        savedMegaBinData[key] = { ...chart.binData };
                     }
                 });
             } else {
-                // Clear selections when switching back to mega mode
-                clearAllSelections();
+                // no-op here; restoration handled after we switch back
             }
             
             if (!miniMode) {
@@ -1776,28 +1855,11 @@
                 // Recalculate bins
                 prebinData();
                 
-                // Update stats BEFORE reinitializing charts
-                updateStats();
-                updateRanges();
-                
-                // Reinitialize charts
-                initCharts();
-                
-                // Restore selections with converted coordinates
-                Object.keys(oldSelections).forEach(key => {
-                    const chart = charts[key];
-                    if (chart && oldSelections[key] && oldBinData[key]) {
-                        const convertedSelection = convertSelection(
-                            oldSelections[key], 
-                            oldBinData[key], 
-                            chart.binData
-                        );
-                        if (convertedSelection) {
-                            chart.selection = convertedSelection;
-                            chart.draw();
-                        }
-                    }
-                });
+                 // Reinitialize charts; stats/ranges will be updated as part of init
+                 initCharts();
+                // Clear any prior selections when entering mini mode
+                clearAllSelections();
+                updateAllCharts();
                 
                 btn.innerHTML = '🔍 Mega';
                 
@@ -1806,7 +1868,10 @@
                 data = originalData;
                 currentRows = ROWS;
                 
-                // Reset filters and recreate filtered indices array
+                // Re-bin on the full dataset
+                prebinData();
+
+                // Reset to base view (no filters, no selections)
                 filters = { width: null, height: null, angle: null, time: null, strength: null, category: new Set(), categoryType: 'cat4' };
                 filteredIndices = new Uint8Array(ROWS);
                 filteredIndices.fill(1);
@@ -1814,14 +1879,28 @@
                 // Set mini mode
                 miniMode = false;
                 
-                // Update stats (bins don't need recalculation in mega mode)
-                updateStats();
-                updateRanges(); 
-                
-                // Reinitialize charts
+                // Reinitialize charts and clear any selections; init handles updates
                 initCharts();
+                clearAllSelections();
+
+                // Clear saved mega state to avoid accidental reuse
+                savedMegaSelections = null;
+                savedMegaBinData = null;
+                savedMegaFilters = null;
                 btn.innerHTML = '📱 Mini';
             }
+        }
+
+        function cloneFilters(src) {
+            return {
+                width: src.width ? [src.width[0], src.width[1]] : null,
+                height: src.height ? [src.height[0], src.height[1]] : null,
+                angle: src.angle ? [src.angle[0], src.angle[1]] : null,
+                time: src.time ? [src.time[0], src.time[1]] : null,
+                strength: src.strength ? [src.strength[0], src.strength[1]] : null,
+                category: new Set(Array.from(src.category || [])),
+                categoryType: src.categoryType || 'cat4'
+            };
         }
         
         // Export CSV - all selected data
