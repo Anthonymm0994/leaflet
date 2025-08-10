@@ -127,7 +127,7 @@
           filteredIndices[i] = 1;
         }
         if (i < ROWS) {
-          requestIdleCallback(batch, { timeout: 16 });
+          requestIdle(batch, { timeout: 16 });
         } else {
           prebinData();
           initCharts();
@@ -371,7 +371,7 @@
 
     function applyFilters(){
       const end = currentRows; let processed=0;
-      function step(){ const limit=Math.min(processed+1000000,end); for(let i=processed;i<limit;i++){ let pass=true; if(filters.width && (data.width[i] < filters.width[0] || data.width[i] >= filters.width[1])) pass=false; if(pass && filters.height && (data.height[i] < filters.height[0] || data.height[i] >= filters.height[1])) pass=false; if(pass && filters.strength && (data.strength[i] < filters.strength[0] || data.strength[i] >= filters.strength[1])) pass=false; if(pass && filters.time && (data.timeSeconds[i] < filters.time[0] || data.timeSeconds[i] >= filters.time[1])) pass=false; if(pass && filters.angle){ const [a,b]=filters.angle; const ang=data.angle[i]; if(a<=b){ if(ang<a || ang>=b) pass=false; } else { if(ang>=b && ang<a) pass=false; } } if(pass && filters.category.size>0){ if(!filters.category.has(data.category_4[i])) pass=false; } filteredIndices[i]=pass?1:0; } processed=limit; if(processed<end){ requestIdleCallback(step,{timeout:16}); } else { updateAll(); } }
+      function step(){ const limit=Math.min(processed+1000000,end); for(let i=processed;i<limit;i++){ let pass=true; if(filters.width && (data.width[i] < filters.width[0] || data.width[i] >= filters.width[1])) pass=false; if(pass && filters.height && (data.height[i] < filters.height[0] || data.height[i] >= filters.height[1])) pass=false; if(pass && filters.strength && (data.strength[i] < filters.strength[0] || data.strength[i] >= filters.strength[1])) pass=false; if(pass && filters.time && (data.timeSeconds[i] < filters.time[0] || data.timeSeconds[i] >= filters.time[1])) pass=false; if(pass && filters.angle){ const [a,b]=filters.angle; const ang=data.angle[i]; if(a<=b){ if(ang<a || ang>=b) pass=false; } else { if(ang>=b && ang<a) pass=false; } } if(pass && filters.category.size>0){ if(!filters.category.has(data.category_4[i])) pass=false; } filteredIndices[i]=pass?1:0; } processed=limit; if(processed<end){ requestIdle(step,{timeout:16}); } else { updateAll(); } }
       step();
     }
 
