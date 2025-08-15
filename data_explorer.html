@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generic Data Explorer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #e0e0e0; overflow: hidden; }
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .progress { width: 400px; height: 6px; background: #333; margin-top: 10px; border-radius: 3px; }
+        .progress-bar { height: 100%; background: #4a9eff; transition: width 0.1s; border-radius: 3px; }
+        #main { display: none; height: 100vh; padding: 8px; }
+        .header { background: #1a1a1a; padding: 8px 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .stats { display: flex; gap: 15px; font-size: 13px; }
+        .stats span { display: flex; align-items: center; gap: 5px; }
+        .stats strong { color: #4a9eff; }
+        button { background: #4a9eff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+        button:hover { background: #3a8eef; }
+        button:active { transform: scale(0.95); }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8px; height: calc(100% - 140px); }
+        .panel { background: #1a1a1a; border-radius: 4px; padding: 8px; position: relative; }
+        .panel-title { font-size: 13px; margin-bottom: 4px; font-weight: 500; }
+        canvas { position: absolute; top: 28px; left: 8px; right: 8px; bottom: 20px; cursor: crosshair; }
+        select { background: #333; color: #e0e0e0; border: 1px solid #555; padding: 3px 6px; border-radius: 3px; position: absolute; top: 4px; right: 8px; font-size: 11px; }
+        #tooltip { position: fixed; background: rgba(0,0,0,0.95); padding: 6px 10px; border-radius: 3px; font-size: 11px; pointer-events: none; display: none; z-index: 1000; border: 1px solid #333; }
+        .mini-mode { display: none; }
+        .mini-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+        .mini-panel { background: #1a1a1a; border-radius: 4px; padding: 12px; text-align: center; }
+        .mini-value { font-size: 24px; font-weight: 600; color: #4a9eff; }
+        .mini-label { font-size: 11px; color: #999; margin-top: 4px; }
+        #statsPanel { position: absolute; top: 60px; right: 16px; background: rgba(26,26,26,0.95); border: 1px solid #333; border-radius: 4px; padding: 12px; font-size: 12px; display: none; z-index: 100; }
+        #statsPanel div { margin-bottom: 4px; }
+        #statsPanel strong { color: #4a9eff; margin-left: 4px; }
+        .range-display { 
+            background: #1a1a1a; 
+            padding: 12px 16px; 
+            border-radius: 4px; 
+            margin-bottom: 8px;
+            display: flex; 
+            gap: 24px; 
+            flex-wrap: wrap;
+        }
+        .mini-mode .range-display { display: none; }
+        .range-item { 
+            display: flex; 
+            flex-direction: column; 
+            min-width: 120px;
+        }
+        .range-label { 
+            font-size: 11px; 
+            color: #888; 
+            margin-bottom: 2px; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .range-value { 
+            font-size: 13px; 
+            color: #4a9eff; 
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div>Loading data...</div>
+        <div class="progress"><div class="progress-bar" id="progress"></div></div>
+        <div id="loadingStatus" style="margin-top: 8px; font-size: 12px; color: #999;"></div>
+    </div>
+    
+    <div id="main">
+        <div class="header">
+            <h3 id="title">Data Explorer</h3>
+            <div class="stats">
+                <span>Total: <strong id="totalCount">0</strong></span>
+                <span>Filtered: <strong id="filteredCount">0</strong></span>
+                <span>Selected: <strong id="percentFiltered">0%</strong></span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="DataExplorer.toggleStats()">📊 Stats</button>
+                <button id="miniModeBtn" onclick="DataExplorer.toggleMiniMode()">📱 Mini</button>
+                <button onclick="DataExplorer.resetAll()">🔄 Reset</button>
+                <button onclick="DataExplorer.exportCSV()">💾 CSV</button>
+                <button onclick="DataExplorer.saveSnapshot()">📷 Snapshot</button>
+            </div>
+        </div>
+        
+        <div class="range-display" id="rangeDisplay"></div>
+        
+        <div class="grid" id="chartGrid"></div>
+        
+        <div class="mini-mode" id="miniMode">
+            <div class="mini-grid" id="miniGrid"></div>
+        </div>
+    </div>
+    
+    <div id="tooltip"></div>
+    <div id="statsPanel"></div>
+    
+    <!-- Core Modules -->
+    <script src="modules/DataManager.js"></script>
+    <script src="modules/ChartManager.js"></script>
+    <script src="modules/FilterManager.js"></script>
+    <script src="modules/DataExplorer.js"></script>
+    
+    <script>
+        // Configuration object - can be modified by Python script
+        window.DataExplorerConfig = {
+            title: "Generic Data Explorer",
+            columns: [], // Will be populated by Python
+            data: [], // Will be populated by Python
+            chartTypes: {}, // Chart type configuration
+            miniMetrics: [] // Metrics to show in mini mode
+        };
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            DataExplorer.init();
+        });
+    </script>
+</body>
+</html>
