@@ -225,13 +225,13 @@
         class AngleChart extends Chart {
             constructor(canvasId){ super(canvasId); this.isInteracting=false; }
             draw(){
-                this.clear(); const cx=this.width/2, cy=this.height/2, radius=Math.min(cx,cy)-20, inner=radius*0.3; const bins=binCache.angle.bins, binSize=binCache.angle.binSize, maxCount=binCache.angle.maxCount;
+                this.clear(); const cx=this.width/2, cy=this.height/2, radius=Math.max(10, Math.min(cx,cy)-20), inner=Math.max(5, radius*0.3); const bins=binCache.angle.bins, binSize=binCache.angle.binSize, maxCount=binCache.angle.maxCount;
                 this.ctx.save(); this.ctx.translate(0,0); this.ctx.strokeStyle='#2a2a2a'; this.ctx.lineWidth=0.5; for(let r=inner; r<=radius; r+=(radius-inner)/4){ this.ctx.beginPath(); this.ctx.arc(cx,cy,r,0,Math.PI*2); this.ctx.stroke(); }
                 for(let a=0;a<360;a+=30){ const rad=(a-90)*Math.PI/180; this.ctx.beginPath(); this.ctx.moveTo(cx+Math.cos(rad)*inner, cy+Math.sin(rad)*inner); this.ctx.lineTo(cx+Math.cos(rad)*radius, cy+Math.sin(rad)*radius); this.ctx.stroke(); }
                 for(let i=0;i<bins.length;i++){ const start=(i*binSize-90)*Math.PI/180, end=((i+1)*binSize-90)*Math.PI/180; const count=bins[i].filter(idx=>filteredIndices[idx]).length; if(count<1) continue; const scale=(count/maxCount)*(radius-inner); this.ctx.fillStyle='#4a9eff'; this.ctx.beginPath(); this.ctx.arc(cx,cy,inner,start,end); this.ctx.arc(cx,cy,inner+scale,end,start,true); this.ctx.closePath(); this.ctx.fill(); }
                 this.ctx.restore();
             }
-            onMouseDown(e){ const p=this.getMousePos(e); const cx=this.width/2, cy=this.height/2; const dx=p.x-cx, dy=p.y-cy; const dist=Math.sqrt(dx*dx+dy*dy), radius=Math.min(cx,cy)-20; if(dist>=radius*0.3 && dist<=radius){ const ang=Math.atan2(dy,dx)*180/Math.PI+90; this.isDragging=true; this.dragStart=Math.floor(((ang+360)%360)/binCache.angle.binSize);} }
+            onMouseDown(e){ const p=this.getMousePos(e); const cx=this.width/2, cy=this.height/2; const dx=p.x-cx, dy=p.y-cy; const dist=Math.sqrt(dx*dx+dy*dy), radius=Math.max(10, Math.min(cx,cy)-20); if(dist>=radius*0.3 && dist<=radius){ const ang=Math.atan2(dy,dx)*180/Math.PI+90; this.isDragging=true; this.dragStart=Math.floor(((ang+360)%360)/binCache.angle.binSize);} }
             onMouseMove(e){ if(this.isDragging){ const p=this.getMousePos(e); const cx=this.width/2, cy=this.height/2; const dx=p.x-cx, dy=p.y-cy; const ang=Math.atan2(dy,dx)*180/Math.PI+90; const bin=Math.floor(((ang+360)%360)/binCache.angle.binSize); let s=this.dragStart, t=bin; if(Math.abs(t-s)>binCache.angle.numBins/2){ if(s<t) s+=binCache.angle.numBins; else t+=binCache.angle.numBins; } this.selection=[Math.min(s,t)%binCache.angle.numBins, Math.max(s,t)%binCache.angle.numBins]; this.draw(); } }
             onMouseUp(){ if(this.isDragging && this.selection){ filters.angle=[ this.selection[0]*binCache.angle.binSize, (this.selection[1]+1)*binCache.angle.binSize ]; applyFilters(); } this.isDragging=false; }
             onClick(){ if(!this.isInteracting && this.selection){ this.selection=null; filters.angle=null; applyFilters(); this.draw(); } }
