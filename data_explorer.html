@@ -206,8 +206,12 @@
                     const values = data[col];
                     
                     if (colType === 'integer' || colType === 'number') {
-                        const min = Math.min(...values);
-                        const max = Math.max(...values);
+                        let min = values[0];
+                        let max = values[0];
+                        for (let i = 1; i < values.length; i++) {
+                            if (values[i] < min) min = values[i];
+                            if (values[i] > max) max = values[i];
+                        }
                         const numBins = 50;
                         const binSize = (max - min) / numBins;
                         
@@ -223,11 +227,15 @@
                             max,
                             binSize,
                             numBins,
-                            maxCount: Math.max(...bins.map(bin => bin.length))
+                            maxCount: bins.reduce((max, bin) => Math.max(max, bin.length), 0)
                         };
                     } else if (colType === 'time') {
-                        const min = Math.min(...values);
-                        const max = Math.max(...values);
+                        let min = values[0];
+                        let max = values[0];
+                        for (let i = 1; i < values.length; i++) {
+                            if (values[i] < min) min = values[i];
+                            if (values[i] > max) max = values[i];
+                        }
                         const numBins = 24; // 24 hour bins
                         const binSize = (max - min) / numBins;
                         
@@ -243,7 +251,7 @@
                             max,
                             binSize,
                             numBins,
-                            maxCount: Math.max(...bins.map(bin => bin.length))
+                            maxCount: bins.reduce((max, bin) => Math.max(max, bin.length), 0)
                         };
                     } else if (colType === 'string') {
                         // For categorical data, count unique values

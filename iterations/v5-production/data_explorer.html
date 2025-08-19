@@ -284,16 +284,29 @@
                     const type = colData.type;
                     
                     if (type === 'number' || type === 'integer' || type === 'time') {
-                        // Histogram binning
-                        const min = Math.min(...values);
-                        const max = Math.max(...values);
+                        // Histogram binning - safe min/max calculation to avoid stack overflow
+                        let min = values[0];
+                        let max = values[0];
+                        for (let i = 1; i < values.length; i++) {
+                            if (values[i] < min) min = values[i];
+                            if (values[i] > max) max = values[i];
+                        }
+                        
                         const numBins = 50;
-                        const binSize = (max - min) / numBins;
+                        const binSize = (max - min) / numBins || 1; // Avoid division by zero
                         
                         const bins = Array(numBins).fill().map(() => []);
                         for (let i = 0; i < values.length; i++) {
                             const binIndex = Math.min(Math.floor((values[i] - min) / binSize), numBins - 1);
                             bins[binIndex].push(i);
+                        }
+                        
+                        // Safe maxCount calculation
+                        let maxCount = 0;
+                        for (let i = 0; i < bins.length; i++) {
+                            if (bins[i].length > maxCount) {
+                                maxCount = bins[i].length;
+                            }
                         }
                         
                         binCache[col] = {
@@ -303,7 +316,7 @@
                             max,
                             binSize,
                             numBins,
-                            maxCount: Math.max(...bins.map(bin => bin.length))
+                            maxCount
                         };
                     }
                     else if (type === 'angle') {
@@ -317,6 +330,14 @@
                             bins[binIndex].push(i);
                         }
                         
+                        // Safe maxCount calculation
+                        let maxCount = 0;
+                        for (let i = 0; i < bins.length; i++) {
+                            if (bins[i].length > maxCount) {
+                                maxCount = bins[i].length;
+                            }
+                        }
+                        
                         binCache[col] = {
                             type: 'angle',
                             bins,
@@ -324,7 +345,7 @@
                             max: 360,
                             binSize,
                             numBins,
-                            maxCount: Math.max(...bins.map(bin => bin.length))
+                            maxCount
                         };
                     }
                     else if (type === 'string') {
@@ -339,11 +360,19 @@
                                 counts[val]++;
                             }
                             
+                            // Safe maxCount calculation
+                            let maxCount = 0;
+                            for (const val of uniqueValues) {
+                                if (counts[val] > maxCount) {
+                                    maxCount = counts[val];
+                                }
+                            }
+                            
                             binCache[col] = {
                                 type: 'categorical',
                                 uniqueValues,
                                 counts,
-                                maxCount: Math.max(...Object.values(counts))
+                                maxCount
                             };
                         }
                     }
@@ -481,6 +510,7 @@
             }
             
             getMousePos(e) {
+                if (!e || !this.canvas) return { x: 0, y: 0 };
                 const r = this.canvas.getBoundingClientRect();
                 return {
                     x: (e.clientX - r.left) * (this.width / r.width),
@@ -590,12 +620,17 @@
             }
             
             onMouseDown(e) {
+                if (!e) return;
                 const p = this.getMousePos(e);
+                if (!p || !this.margin) return;
+                
                 const x = p.x - this.margin.left;
                 const width = this.width - this.margin.left - this.margin.right;
                 
                 if (x >= 0 && x <= width && p.y >= this.margin.top && p.y <= this.height - this.margin.bottom) {
                     const binData = binCache[this.column];
+                    if (!binData || !binData.bins) return;
+                    
                     const bin = Math.floor(x / (width / binData.bins.length));
                     
                     if (bin >= 0 && bin < binData.bins.length) {
@@ -607,14 +642,18 @@
             }
             
             onMouseMove(e) {
-                if (!this.isDragging) return;
+                if (!this.isDragging || !e) return;
                 
                 const p = this.getMousePos(e);
+                if (!p || !this.margin) return;
+                
                 const x = p.x - this.margin.left;
                 const width = this.width - this.margin.left - this.margin.right;
                 
                 if (x >= 0 && x <= width) {
                     const binData = binCache[this.column];
+                    if (!binData || !binData.bins) return;
+                    
                     const bin = Math.floor(x / (width / binData.bins.length));
                     if (bin >= 0 && bin < binData.bins.length) {
                         this.selection = [Math.min(this.dragStart, bin), Math.max(this.dragStart, bin)];
@@ -626,10 +665,12 @@
             onMouseUp() {
                 if (this.isDragging && this.selection) {
                     const binData = binCache[this.column];
-                    const min = binData.min + this.selection[0] * binData.binSize;
-                    const max = binData.min + (this.selection[1] + 1) * binData.binSize;
-                    
-                    FilterSystem.setFilter(this.column, [min, max]);
+                    if (binData && binData.binSize !== undefined && binData.min !== undefined) {
+                        const min = binData.min + this.selection[0] * binData.binSize;
+                        const max = binData.min + (this.selection[1] + 1) * binData.binSize;
+                        
+                        FilterSystem.setFilter(this.column, [min, max]);
+                    }
                 }
                 
                 this.isDragging = false;
@@ -708,7 +749,10 @@
             }
             
             onMouseDown(e) {
+                if (!e) return;
                 const p = this.getMousePos(e);
+                if (!p) return;
+                
                 const cx = this.width / 2;
                 const cy = this.height / 2;
                 const dx = p.x - cx;
@@ -719,34 +763,42 @@
                 if (dist >= radius * 0.3 && dist <= radius) {
                     const ang = Math.atan2(dy, dx) * 180 / Math.PI + 90;
                     const binData = binCache[this.column];
-                    this.isDragging = true;
-                    this.dragStart = Math.floor(((ang + 360) % 360) / binData.binSize);
+                    if (binData && binData.binSize) {
+                        this.isDragging = true;
+                        this.dragStart = Math.floor(((ang + 360) % 360) / binData.binSize);
+                    }
                 }
             }
             
             onMouseMove(e) {
-                if (!this.isDragging) return;
+                if (!this.isDragging || !e) return;
                 
                 const p = this.getMousePos(e);
+                if (!p) return;
+                
                 const cx = this.width / 2;
                 const cy = this.height / 2;
                 const dx = p.x - cx;
                 const dy = p.y - cy;
                 const ang = Math.atan2(dy, dx) * 180 / Math.PI + 90;
                 const binData = binCache[this.column];
-                const bin = Math.floor(((ang + 360) % 360) / binData.binSize);
                 
-                this.selection = [this.dragStart, bin];
-                this.draw();
+                if (binData && binData.binSize) {
+                    const bin = Math.floor(((ang + 360) % 360) / binData.binSize);
+                    this.selection = [this.dragStart, bin];
+                    this.draw();
+                }
             }
             
             onMouseUp() {
                 if (this.isDragging && this.selection) {
                     const binData = binCache[this.column];
-                    const min = this.selection[0] * binData.binSize;
-                    const max = (this.selection[1] + 1) * binData.binSize;
-                    
-                    FilterSystem.setFilter(this.column, [min, max]);
+                    if (binData && binData.binSize !== undefined) {
+                        const min = this.selection[0] * binData.binSize;
+                        const max = (this.selection[1] + 1) * binData.binSize;
+                        
+                        FilterSystem.setFilter(this.column, [min, max]);
+                    }
                 }
                 
                 this.isDragging = false;
@@ -838,7 +890,10 @@
             }
             
             onMouseDown(e) {
+                if (!e) return;
                 const p = this.getMousePos(e);
+                if (!p || !this.margin) return;
+                
                 const x = p.x - this.margin.left;
                 const y = p.y - this.margin.top;
                 const width = this.width - this.margin.left - this.margin.right;
@@ -846,6 +901,8 @@
                 
                 if (x >= 0 && x <= width && y >= 0 && y <= height) {
                     const binData = binCache[this.column];
+                    if (!binData || !binData.uniqueValues) return;
+                    
                     const barWidth = width / binData.uniqueValues.length;
                     const barIndex = Math.floor(x / barWidth);
                     
