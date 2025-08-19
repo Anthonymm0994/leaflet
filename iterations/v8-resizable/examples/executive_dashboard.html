@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Dashboard Layout</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #e0e0e0; overflow: hidden; }
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .progress { width: 400px; height: 6px; background: #333; margin-top: 10px; border-radius: 3px; }
+        .progress-bar { height: 100%; background: #4a9eff; transition: width 0.1s; border-radius: 3px; }
+        #main { display: none; height: 100vh; padding: 8px; }
+        .header { background: #1a1a1a; padding: 8px 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .stats { display: flex; gap: 15px; font-size: 13px; }
+        .stats span { display: flex; align-items: center; gap: 5px; }
+        .stats strong { color: #4a9eff; }
+        button { background: #4a9eff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+        button:hover { background: #3a8eef; }
+        button:active { transform: scale(0.95); }
+        
+        /* Executive Dashboard Layout - Large KPI panel + smaller supporting charts */
+        .grid-container { 
+            display: grid; 
+            grid-template-columns: 2fr 1fr 1fr; 
+            grid-template-rows: 2fr 1fr 1fr; 
+            gap: 8px; 
+            height: calc(100vh - 120px); 
+        }
+        
+        .panel { 
+            background: #1a1a1a; 
+            border-radius: 4px; 
+            padding: 8px; 
+            position: relative; 
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .panel:hover {
+            border-color: #4a9eff;
+            box-shadow: 0 4px 15px rgba(74, 158, 255, 0.2);
+        }
+        
+        .panel-title { 
+            font-size: 14px; 
+            font-weight: 600; 
+            margin-bottom: 6px;
+            color: #4a9eff;
+        }
+        
+        canvas { 
+            position: absolute; 
+            top: 30px; 
+            left: 8px; 
+            right: 8px; 
+            bottom: 8px; 
+            cursor: crosshair; 
+        }
+        
+        /* Special styling for the main KPI panel */
+        .kpi-panel {
+            grid-column: 1;
+            grid-row: 1 / 3;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            border: 2px solid #4a9eff;
+        }
+        
+        .kpi-panel .panel-title {
+            font-size: 18px;
+            color: #feca57;
+            text-align: center;
+        }
+        
+        /* Supporting panels */
+        .support-panel {
+            background: #1a1a1a;
+        }
+        
+        .detail-panel {
+            grid-column: 2 / 4;
+            grid-row: 3;
+        }
+        
+        #tooltip { position: fixed; background: rgba(0,0,0,0.95); padding: 6px 10px; border-radius: 3px; font-size: 11px; pointer-events: none; display: none; z-index: 1000; border: 1px solid #333; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div>Generating <strong>10,000,000</strong> rows...</div>
+        <div class="progress"><div class="progress-bar" id="progress"></div></div>
+        <div id="loadingStatus" style="margin-top: 8px; font-size: 12px; color: #999;"></div>
+    </div>
+    
+    <div id="main">
+        <div class="header">
+            <h3>📊 Executive Dashboard - Key Performance Indicators</h3>
+            <div class="stats">
+                <span>Total: <strong>10,000,000</strong></span>
+                <span>Filtered: <strong id="filteredCount">10,000,000</strong></span>
+                <span>Selected: <strong id="percentFiltered">100%</strong></span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="resetAll()">🔄 Reset</button>
+                <button onclick="exportCSV()">💾 Export</button>
+            </div>
+        </div>
+        
+        <div class="grid-container">
+            <!-- MAIN KPI: Large strength chart for primary metric -->
+            <div class="panel kpi-panel">
+                <div class="panel-title">🎯 PRIMARY PERFORMANCE METRIC</div>
+                <canvas id="strengthCanvas"></canvas>
+            </div>
+            
+            <!-- Supporting metric 1: Time patterns -->
+            <div class="panel support-panel">
+                <div class="panel-title">⏰ Time Patterns</div>
+                <canvas id="timeCanvas"></canvas>
+            </div>
+            
+            <!-- Supporting metric 2: Quality distribution -->
+            <div class="panel support-panel">
+                <div class="panel-title">📏 Quality Metrics</div>
+                <canvas id="widthCanvas"></canvas>
+            </div>
+            
+            <!-- Operational insight: Height trends -->
+            <div class="panel support-panel">
+                <div class="panel-title">📈 Operational Trends</div>
+                <canvas id="heightCanvas"></canvas>
+            </div>
+            
+            <!-- Strategic view: Category breakdown -->
+            <div class="panel detail-panel">
+                <div class="panel-title">🏢 Strategic Category Breakdown</div>
+                <canvas id="categoryCanvas"></canvas>
+            </div>
+            
+            <!-- Directional analysis: Hidden by default, can be shown if needed -->
+            <div class="panel" style="display: none;">
+                <div class="panel-title">🧭 Directional Analysis</div>
+                <canvas id="angleCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div id="tooltip"></div>
+    
+    <script>
+        const ROWS = 10000000;
+        const BATCH_SIZE = 100000;
+        
+        let data = {
+            good_time: null,
+            width: null,
+            height: null,
+            angle: null,
+            strength: null,
+            category_4: null,
+            category_2: null,
+            timeSeconds: null
+        };
+        
+        let filteredIndices = new Uint8Array(ROWS);
+        let currentRows = ROWS;
+        let binCache = {};
+        let charts = {};
+        let filters = { width: null, height: null, angle: null, time: null, strength: null, category: new Set(), categoryType: 'cat4' };
+        
+        // Box-Muller transform for normal distribution
+        function normalRandom(mean, stddev) {
+            const u1 = Math.random();
+            const u2 = Math.random();
+            const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+            return mean + z0 * stddev;
+        }
+        
+        // Generate 10M rows with realistic distributions
+        function generateData() {
+            data.width = new Float32Array(ROWS);
+            data.height = new Float32Array(ROWS);
+            data.angle = new Float32Array(ROWS);
+            data.strength = new Float32Array(ROWS);
+            data.category_4 = new Uint8Array(ROWS);
+            data.category_2 = new Uint8Array(ROWS);
+            data.timeSeconds = new Float32Array(ROWS);
+            data.good_time = new Array(ROWS);
+            
+            let i = 0;
+            const startTime = performance.now();
+            
+            function batch() {
+                const end = Math.min(i + BATCH_SIZE, ROWS);
+                const status = document.getElementById('loadingStatus');
+                
+                for (; i < end; i++) {
+                    // Width: multimodal distribution (peaks at 50 and 150)
+                    let widthVal;
+                    do {
+                        const widthMode = Math.random() < 0.6 ? 50 : 150;
+                        widthVal = normalRandom(widthMode, 20);
+                    } while (widthVal < 1 || widthVal >= 200);
+                    data.width[i] = widthVal;
+                    
+                    // Height: truncated log-normal distribution in [0.2, 4.8)
+                    let heightVal;
+                    do {
+                        const logHeight = normalRandom(0.5, 0.5);
+                        heightVal = Math.exp(logHeight);
+                    } while (heightVal < 0.2 || heightVal >= 4.8);
+                    data.height[i] = heightVal;
+                    
+                    // Angle: twin peaks at 90° and 270°
+                    if (Math.random() < 0.5) {
+                        data.angle[i] = (normalRandom(90, 30) + 360) % 360;
+                    } else {
+                        data.angle[i] = (normalRandom(270, 30) + 360) % 360;
+                    }
+                    
+                    // Strength: truncated exponential in [0, 100)
+                    let strengthVal;
+                    do {
+                        strengthVal = -Math.log(1 - Math.random()) * 20;
+                    } while (strengthVal >= 100);
+                    data.strength[i] = strengthVal;
+                    
+                    // Categories with non-uniform distribution
+                    const catProb = Math.random();
+                    if (catProb < 0.4) data.category_4[i] = 0;      // A: 40%
+                    else if (catProb < 0.65) data.category_4[i] = 1; // B: 25%
+                    else if (catProb < 0.85) data.category_4[i] = 2; // C: 20%
+                    else data.category_4[i] = 3;                      // D: 15%
+                    
+                    // category_2: slightly biased toward true
+                    data.category_2[i] = Math.random() < 0.55 ? 1 : 0;
+                    
+                    // Time: peaks during business hours (0-24 hours in seconds)
+                    const hour = normalRandom(13, 4); // Peak at 1 PM
+                    const timeInSeconds = ((hour + 24) % 24) * 3600 + Math.random() * 3600;
+                    data.timeSeconds[i] = Math.max(0, Math.min(86399, timeInSeconds));
+                    
+                    const h = Math.floor(data.timeSeconds[i] / 3600);
+                    const m = Math.floor((data.timeSeconds[i] % 3600) / 60);
+                    const s = Math.floor(data.timeSeconds[i] % 60);
+                    const ms = Math.floor((data.timeSeconds[i] % 1) * 1000);
+                    data.good_time[i] = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}.${ms.toString().padStart(3,'0')}`;
+                    
+                    filteredIndices[i] = 1;
+                }
+                
+                const progress = (i / ROWS * 100);
+                document.getElementById('progress').style.width = progress + '%';
+                
+                const elapsed = (performance.now() - startTime) / 1000;
+                const rate = i / elapsed;
+                const eta = (ROWS - i) / rate;
+                status.textContent = `${i.toLocaleString()} rows | ${(rate/1000).toFixed(0)}k rows/sec | ETA: ${eta.toFixed(1)}s`;
+                
+                if (i < ROWS) {
+                    requestIdleCallback(() => batch(), { timeout: 16 });
+                } else {
+                    prebinData();
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('main').style.display = 'block';
+                    initCharts();
+                }
+            }
+            
+            batch();
+        }
+
+        // requestIdleCallback fallback for broader browser support
+        const requestIdle = window.requestIdleCallback || function (cb) { return setTimeout(() => cb({ timeRemaining: () => 0 }), 0); };
+        
+        // Pre-bin data for performance
+        function prebinData() {
+            binCache.width = binData(data.width, 1, 200, 50);
+            binCache.height = binData(data.height, 0.2, 4.8, 50);
+            binCache.strength = binData(data.strength, 0, 100, 50);
+            binCache.time = binData(data.timeSeconds, 0, 86400, 50);
+            binCache.angle = binAngleData();
+        }
+        
+        function binData(arr, min, max, numBins) {
+            const bins = new Array(numBins).fill(null).map(() => []);
+            let range = max - min;
+            if (range <= 0) {
+                for (let i = 0; i < arr.length; i++) bins[0].push(i);
+                return { bins, binSize: 1, min, max, maxCount: arr.length };
+            }
+            const binSize = range / numBins;
+            
+            for (let i = 0; i < arr.length; i++) {
+                const value = Math.min(arr[i], max - Number.EPSILON);
+                const bin = Math.floor((value - min) / binSize);
+                if (bin >= 0 && bin < numBins) bins[bin].push(i);
+            }
+            
+            let maxCount = 0;
+            for (let i = 0; i < bins.length; i++) {
+                if (bins[i].length > maxCount) maxCount = bins[i].length;
+            }
+
+            return { bins, binSize, min, max, maxCount };
+        }
+
+        function binAngleData() {
+            const numBins = 120;
+            const bins = new Array(numBins).fill(null).map(() => []);
+            const binSize = 360 / numBins;
+            
+            for (let i = 0; i < data.angle.length; i++) {
+                const bin = Math.floor(data.angle[i] / binSize) % numBins;
+                bins[bin].push(i);
+            }
+            
+            let maxCount = 0;
+            for (let i = 0; i < bins.length; i++) {
+                maxCount = Math.max(maxCount, bins[i].length);
+            }
+            
+            return { bins, binSize, numBins, maxCount };
+        }
+        
+        // Copy all the chart classes from the original...
+        // [Chart classes would be identical to original - truncated for brevity]
+        
+        class Chart {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d', { alpha: false });
+                this.isDragging = false;
+                this.selection = null;
+                
+                this.resize();
+                window.addEventListener('resize', this.resize.bind(this));
+                
+                this.canvas.addEventListener('mousedown', e => this.onMouseDown(e));
+                this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
+                this.canvas.addEventListener('mouseup', e => this.onMouseUp(e));
+                this.canvas.addEventListener('mouseleave', e => { this.onMouseUp(e); });
+                this.canvas.addEventListener('click', e => this.onClick(e));
+            }
+            
+            resize() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                this.canvas.width = (rect.width - 16) * dpr;
+                this.canvas.height = (rect.height - 38) * dpr;
+                this.canvas.style.width = (rect.width - 16) + 'px';
+                this.canvas.style.height = (rect.height - 38) + 'px';
+                this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                this.width = rect.width - 16;
+                this.height = rect.height - 38;
+            }
+            
+            clear() {
+                this.ctx.fillStyle = '#1a1a1a';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+            }
+            
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: (e.clientX - rect.left) * (this.width / rect.width),
+                    y: (e.clientY - rect.top) * (this.height / rect.height)
+                };
+            }
+            
+            onMouseDown(e) {}
+            onMouseMove(e) {}
+            onMouseUp(e) {}
+            onClick(e) {}
+        }
+        
+        // Histogram implementation (same as original)
+        class Histogram extends Chart {
+            constructor(canvasId, binData, label, formatter) {
+                super(canvasId);
+                this.binData = binData;
+                this.label = label;
+                this.formatter = formatter;
+                this.margin = { top: 20, right: 20, bottom: 50, left: 60 }; // Larger margins for executive view
+                this.isInteracting = false;
+            }
+            
+            getFilterKey() {
+                return this.label.toLowerCase();
+            }
+            
+            draw() {
+                this.clear();
+                
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                const bins = this.binData.bins;
+                const barWidth = width / bins.length;
+                
+                const counts = new Float32Array(bins.length);
+                const filteredCounts = new Float32Array(bins.length);
+                for (let i = 0; i < bins.length; i++) {
+                    const binIndices = bins[i];
+                    counts[i] = binIndices.length;
+                    if (binIndices.length > 1000) {
+                        let sampled = 0;
+                        const sampleSize = Math.min(1000, binIndices.length);
+                        const step = Math.max(1, Math.floor(binIndices.length / sampleSize));
+                        for (let j = 0; j < binIndices.length && sampled < sampleSize; j += step) {
+                            if (filteredIndices[binIndices[j]]) sampled++;
+                        }
+                        filteredCounts[i] = (sampled / sampleSize) * binIndices.length;
+                    } else {
+                        filteredCounts[i] = binIndices.filter(idx => filteredIndices[idx]).length;
+                    }
+                }
+                
+                const maxCount = this.binData.maxCount;
+                
+                this.ctx.save();
+                this.ctx.translate(this.margin.left, this.margin.top);
+                
+                // Draw bars with executive styling
+                for (let i = 0; i < bins.length; i++) {
+                    const x = i * barWidth;
+                    const h = (counts[i] / maxCount) * height;
+                    const fh = (filteredCounts[i] / maxCount) * height;
+                    
+                    // Background
+                    this.ctx.fillStyle = '#2a2a2a';
+                    this.ctx.fillRect(x, height - h, barWidth - 1, h);
+                    
+                    // Filtered - gradient for executive look
+                    const gradient = this.ctx.createLinearGradient(0, height - fh, 0, height);
+                    gradient.addColorStop(0, '#4a9eff');
+                    gradient.addColorStop(1, '#3a8eef');
+                    this.ctx.fillStyle = gradient;
+                    this.ctx.fillRect(x, height - fh, barWidth - 1, fh);
+                }
+                
+                // Selection
+                if (this.selection) {
+                    this.ctx.fillStyle = 'rgba(254, 202, 87, 0.2)';
+                    this.ctx.strokeStyle = '#feca57';
+                    this.ctx.lineWidth = 3;
+                    
+                    const x1 = this.selection[0] * barWidth;
+                    const x2 = (this.selection[1] + 1) * barWidth;
+                    
+                    this.ctx.fillRect(x1, 0, x2 - x1, height);
+                    this.ctx.strokeRect(x1, 0, x2 - x1, height);
+                }
+                
+                // Axes with professional styling
+                this.ctx.strokeStyle = '#555';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, height);
+                this.ctx.lineTo(width, height);
+                this.ctx.moveTo(0, 0);
+                this.ctx.lineTo(0, height);
+                this.ctx.stroke();
+                
+                this.ctx.restore();
+            }
+            
+            isInChartArea(pos) {
+                return pos.x >= this.margin.left && 
+                       pos.x <= this.width - this.margin.right &&
+                       pos.y >= this.margin.top && 
+                       pos.y <= this.height - this.margin.bottom;
+            }
+            
+            onMouseDown(e) {
+                const pos = this.getMousePos(e);
+                if (!this.isInChartArea(pos)) return;
+                
+                const x = pos.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                const bin = Math.floor(x / (width / this.binData.bins.length));
+                
+                if (bin >= 0 && bin < this.binData.bins.length) {
+                    this.isDragging = true;
+                    this.isInteracting = true;
+                    this.dragStart = bin;
+                }
+            }
+            
+            onMouseMove(e) {
+                const pos = this.getMousePos(e);
+                const x = pos.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                
+                if (this.isDragging && x >= 0 && x <= width) {
+                    const bin = Math.floor(x / (width / this.binData.bins.length));
+                    if (bin >= 0 && bin < this.binData.bins.length) {
+                        this.selection = [Math.min(this.dragStart, bin), Math.max(this.dragStart, bin)];
+                        this.draw();
+                    }
+                }
+            }
+            
+            onMouseUp(e) {
+                if (this.isDragging && this.selection) {
+                    const filterKey = this.getFilterKey();
+                    filters[filterKey] = [
+                        this.binData.min + this.selection[0] * this.binData.binSize,
+                        this.binData.min + (this.selection[1] + 1) * this.binData.binSize
+                    ];
+                    applyFilters();
+                }
+                this.isDragging = false;
+                setTimeout(() => { this.isInteracting = false; }, 100);
+            }
+            
+            onClick(e) {
+                if (!this.isDragging && !this.isInteracting) {
+                    const pos = this.getMousePos(e);
+                    if (this.isInChartArea(pos)) {
+                        this.selection = null;
+                        const filterKey = this.getFilterKey();
+                        if (filterKey && filters[filterKey]) {
+                            filters[filterKey] = null;
+                            applyFilters();
+                        }
+                    }
+                }
+                this.isDragging = false;
+            }
+        }
+        
+        // Category chart (same as original)
+        class CategoryChart extends Chart {
+            constructor(canvasId) {
+                super(canvasId);
+                this.margin = { top: 20, right: 10, bottom: 40, left: 60 };
+                this.hoveredBar = -1;
+                this.selectedCategories = new Set();
+                this.counts = [0, 0, 0, 0];
+            }
+            
+            draw() {
+                this.clear();
+                
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                
+                const categories = ['A', 'B', 'C', 'D'];
+                const totalBarWidth = width * 0.8;
+                const totalGapWidth = width * 0.2;
+                const barWidth = totalBarWidth / categories.length;
+                const gapWidth = totalGapWidth / (categories.length + 1);
+                
+                // Count categories with sampling
+                const counts = [0, 0, 0, 0];
+                const totalCounts = [0, 0, 0, 0];
+                
+                const sampleStep = Math.max(1, Math.floor(currentRows / 1000000));
+                
+                for (let i = 0; i < currentRows; i += sampleStep) {
+                    const cat = data.category_4[i];
+                    totalCounts[cat]++;
+                    if (filteredIndices[i]) {
+                        counts[cat]++;
+                    }
+                }
+                
+                for (let i = 0; i < 4; i++) {
+                    counts[i] *= sampleStep;
+                    totalCounts[i] *= sampleStep;
+                }
+                
+                this.counts = counts;
+                
+                const maxCount = Math.max(...totalCounts);
+                
+                this.ctx.save();
+                this.ctx.translate(this.margin.left, this.margin.top);
+                
+                const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4'];
+                
+                categories.forEach((cat, i) => {
+                    const x = gapWidth + i * (barWidth + gapWidth);
+                    const h = (totalCounts[i] / maxCount) * height;
+                    const fh = (counts[i] / maxCount) * height;
+                    
+                    // Background bar
+                    this.ctx.fillStyle = '#2a2a2a';
+                    this.ctx.fillRect(x, height - h, barWidth, h);
+                    
+                    const isSelected = this.selectedCategories.size === 0 || 
+                                     this.selectedCategories.has(i);
+                    
+                    // Filtered portion
+                    this.ctx.fillStyle = isSelected ? colors[i] : '#444';
+                    this.ctx.fillRect(x, height - fh, barWidth, fh);
+                    
+                    if (this.selectedCategories.has(i) && this.selectedCategories.size > 0) {
+                        this.ctx.strokeStyle = '#feca57';
+                        this.ctx.lineWidth = 2;
+                        this.ctx.strokeRect(x - 1, height - h - 1, barWidth + 2, h + 2);
+                    }
+                    
+                    // Category label
+                    this.ctx.fillStyle = '#888';
+                    this.ctx.font = '14px -apple-system, sans-serif';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(cat, x + barWidth / 2, height + 25);
+                });
+                
+                this.ctx.restore();
+            }
+            
+            onClick(e) {
+                const pos = this.getMousePos(e);
+                if (!this.isInChartArea(pos)) return;
+                
+                const x = pos.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                
+                const totalBarWidth = width * 0.8;
+                const totalGapWidth = width * 0.2;
+                const barWidth = totalBarWidth / 4;
+                const gapWidth = totalGapWidth / 5;
+                
+                let clickedBar = -1;
+                for (let i = 0; i < 4; i++) {
+                    const barX = gapWidth + i * (barWidth + gapWidth);
+                    if (x >= barX && x <= barX + barWidth) {
+                        clickedBar = i;
+                        break;
+                    }
+                }
+                
+                if (clickedBar >= 0) {
+                    if (this.selectedCategories.has(clickedBar)) {
+                        this.selectedCategories.delete(clickedBar);
+                    } else {
+                        this.selectedCategories.add(clickedBar);
+                    }
+                    
+                    filters.category.clear();
+                    filters.categoryType = 'cat4';
+                    if (this.selectedCategories.size > 0 && this.selectedCategories.size < 4) {
+                        this.selectedCategories.forEach(cat => filters.category.add(cat));
+                    }
+                    
+                    applyFilters();
+                }
+            }
+            
+            isInChartArea(pos) {
+                return pos.x >= this.margin.left && 
+                       pos.x <= this.width - this.margin.right &&
+                       pos.y >= this.margin.top && 
+                       pos.y <= this.height - this.margin.bottom;
+            }
+        }
+        
+        // Initialize all charts
+        function initCharts() {
+            charts.width = new Histogram('widthCanvas', binCache.width, 'Width', v => v.toFixed(2));
+            charts.height = new Histogram('heightCanvas', binCache.height, 'Height', v => v.toFixed(2));
+            charts.time = new Histogram('timeCanvas', binCache.time, 'Time', v => {
+                const h = Math.floor(v / 3600);
+                const m = Math.floor((v % 3600) / 60);
+                return `${h}:${m.toString().padStart(2, '0')}`;
+            });
+            charts.strength = new Histogram('strengthCanvas', binCache.strength, 'Strength', v => v.toFixed(2));
+            charts.category = new CategoryChart('categoryCanvas');
+            
+            updateAllCharts();
+            updateStats();
+        }
+        
+        // Apply filters (same as original)
+        function applyFilters() {
+            let processed = 0;
+            
+            function processBatch() {
+                const batchEnd = Math.min(processed + 1000000, currentRows);
+                
+                for (let i = processed; i < batchEnd; i++) {
+                    let pass = true;
+                    
+                    if (filters.width && (data.width[i] < filters.width[0] || data.width[i] >= filters.width[1])) pass = false;
+                    if (pass && filters.height && (data.height[i] < filters.height[0] || data.height[i] >= filters.height[1])) pass = false;
+                    if (pass && filters.strength && (data.strength[i] < filters.strength[0] || data.strength[i] >= filters.strength[1])) pass = false;
+                    if (pass && filters.time && (data.timeSeconds[i] < filters.time[0] || data.timeSeconds[i] >= filters.time[1])) pass = false;
+                    if (pass && filters.category.size > 0) {
+                        if (!filters.category.has(data.category_4[i])) pass = false;
+                    }
+                    
+                    filteredIndices[i] = pass ? 1 : 0;
+                }
+                
+                processed = batchEnd;
+                
+                if (processed < currentRows) {
+                    requestIdle(processBatch, { timeout: 16 });
+                } else {
+                    updateStats();
+                    updateAllCharts();
+                }
+            }
+            
+            processBatch();
+        }
+        
+        function updateStats() {
+            const totalCount = ROWS;
+            const filteredCount = filteredIndices.reduce((sum, val) => sum + val, 0);
+            const percent = totalCount > 0 ? ((filteredCount / totalCount) * 100).toFixed(1) : 0;
+            
+            document.getElementById('filteredCount').textContent = filteredCount >= 1000000 ? 
+                `${(filteredCount/1000000).toFixed(1)}M` : filteredCount.toLocaleString();
+            document.getElementById('percentFiltered').textContent = percent + '%';
+        }
+        
+        // Update all charts
+        function updateAllCharts() {
+            requestAnimationFrame(() => {
+                Object.values(charts).forEach(chart => chart.draw());
+            });
+        }
+        
+        // Reset all filters
+        function resetAll() {
+            filters = { width: null, height: null, angle: null, time: null, strength: null, category: new Set(), categoryType: 'cat4' };
+            filteredIndices.fill(1);
+            
+            Object.values(charts).forEach(chart => {
+                if (chart.selection) chart.selection = null;
+                if (chart.selectedCategories) chart.selectedCategories.clear();
+            });
+            updateStats();
+            updateAllCharts();
+        }
+        
+        function exportCSV() {
+            const rows = ['good_time,width,height,angle,strength,category_4,category_2'];
+            const categories = ['A', 'B', 'C', 'D'];
+            
+            let count = 0;
+            for (let i = 0; i < currentRows; i++) {
+                if (filteredIndices[i]) {
+                    rows.push([
+                        data.good_time[i],
+                        data.width[i].toFixed(2),
+                        data.height[i].toFixed(2),
+                        data.angle[i].toFixed(2),
+                        data.strength[i].toFixed(2),
+                        categories[data.category_4[i]],
+                        data.category_2[i] === 1
+                    ].join(','));
+                    count++;
+                }
+            }
+            
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `executive_dashboard_${count}_rows.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Start
+        generateData();
+    </script>
+</body>
+</html>
