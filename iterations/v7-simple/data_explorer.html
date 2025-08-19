@@ -148,24 +148,27 @@
                     const binIndex = Math.min(Math.floor((values[i] - min) / binSize), numBins - 1);
                     bins[binIndex].push(i);
                 }
-                binCache[field] = { bins, min, max, binSize, numBins, maxCount: Math.max(...bins.map(bin => bin.length)) };
+                let maxCount = 0; for(let b=0; b<bins.length; b++) if(bins[b].length > maxCount) maxCount = bins[b].length;
+                binCache[field] = { bins, min, max, binSize, numBins, maxCount };
             }
 
             // Time
             const timeBins = Array(24).fill().map(() => []);
             for (let i = 0; i < data.timeSeconds.length; i++) {
-                const hour = Math.floor(data.timeSeconds[i] / 3600);
+                const hour = Math.min(Math.max(0, Math.floor(data.timeSeconds[i] / 3600)), 23);
                 timeBins[hour].push(i);
             }
-            binCache.time = { bins: timeBins, min: 0, max: 86400, binSize: 3600, numBins: 24, maxCount: Math.max(...timeBins.map(bin => bin.length)) };
+            let timeMaxCount = 0; for(let b=0; b<timeBins.length; b++) if(timeBins[b].length > timeMaxCount) timeMaxCount = timeBins[b].length;
+            binCache.time = { bins: timeBins, min: 0, max: 86400, binSize: 3600, numBins: 24, maxCount: timeMaxCount };
 
             // Angle
             const angleBins = Array(36).fill().map(() => []);
             for (let i = 0; i < data.angle.length; i++) {
-                const binIndex = Math.floor(data.angle[i] / 10);
+                const binIndex = Math.min(Math.max(0, Math.floor(data.angle[i] / 10)), 35);
                 angleBins[binIndex].push(i);
             }
-            binCache.angle = { bins: angleBins, min: 0, max: 360, binSize: 10, numBins: 36, maxCount: Math.max(...angleBins.map(bin => bin.length)) };
+            let angleMaxCount = 0; for(let b=0; b<angleBins.length; b++) if(angleBins[b].length > angleMaxCount) angleMaxCount = angleBins[b].length;
+            binCache.angle = { bins: angleBins, min: 0, max: 360, binSize: 10, numBins: 36, maxCount: angleMaxCount };
         }
 
         class Chart {
@@ -206,7 +209,7 @@
                 const width=this.width-this.margin.left-this.margin.right; const height=this.height-this.margin.top-this.margin.bottom; const bins=this.binData.bins; const barWidth=width/bins.length;
                 const counts=new Float32Array(bins.length), filteredCounts=new Float32Array(bins.length);
                 for(let i=0;i<bins.length;i++){ const bi=bins[i]; counts[i]=bi.length; if(bi.length>1000){ let sampled=0; const step=Math.max(1,Math.floor(bi.length/1000)); for(let j=0;j<bi.length && sampled<1000;j+=step){ if(filteredIndices[bi[j]]) sampled++; } filteredCounts[i]=(sampled/Math.min(1000,bi.length))*bi.length; } else { filteredCounts[i]=bi.filter(idx=>filteredIndices[idx]).length; } }
-                const maxCount=this.binData.maxCount || Math.max(...counts);
+                let maxCount = this.binData.maxCount || 1; if(!maxCount) { maxCount = 0; for(let c=0; c<counts.length; c++) if(counts[c] > maxCount) maxCount = counts[c]; }
                 this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top);
                 for(let i=0;i<bins.length;i++){ const x=i*barWidth; const h=(counts[i]/maxCount)*height; const fh=(filteredCounts[i]/maxCount)*height; this.ctx.fillStyle='#2a2a2a'; this.ctx.fillRect(x,height-h,barWidth-1,h); this.ctx.fillStyle='#4a9eff'; this.ctx.fillRect(x,height-fh,barWidth-1,fh); }
                 if(this.selection){ this.ctx.fillStyle='rgba(255,255,255,0.1)'; this.ctx.strokeStyle='#feca57'; this.ctx.lineWidth=2; const x1=this.selection[0]*barWidth; const x2=(this.selection[1]+1)*barWidth; this.ctx.fillRect(x1,0,x2-x1,height); this.ctx.strokeRect(x1,0,x2-x1,height);} 
@@ -241,7 +244,7 @@
                 const dataField = this.filterKey==='category' ? data.category_4 : this.filterKey==='department' ? data.department : data.status;
                 for(let i=0;i<currentRows;i+=step){ totals[dataField[i]]++; if(filteredIndices[i]) counts[dataField[i]]++; }
                 for(let i=0;i<this.categories.length;i++){ counts[i]*=step; totals[i]*=step; }
-                const maxCount=Math.max(...totals); const colors=['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#feca57','#ff9ff3','#a8e6cf','#dda0dd']; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top);
+                let maxCount = 0; for(let t=0; t<totals.length; t++) if(totals[t] > maxCount) maxCount = totals[t]; const colors=['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#feca57','#ff9ff3','#a8e6cf','#dda0dd']; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top);
                 const totalBar=width*0.8, gapW=width*0.2, barW=totalBar/this.categories.length, gap=gapW/(this.categories.length+1);
                 for(let i=0;i<this.categories.length;i++){ const x=gap+i*(barW+gap); const h=(totals[i]/maxCount)*height; const fh=(counts[i]/maxCount)*height; this.ctx.fillStyle='#2a2a2a'; this.ctx.fillRect(x,height-h,barW,h); this.ctx.fillStyle= this.selected.size===0 || this.selected.has(i) ? colors[i%colors.length] : '#444'; this.ctx.fillRect(x,height-fh,barW,fh); if(this.selected.has(i)){ this.ctx.strokeStyle='#feca57'; this.ctx.lineWidth=2; this.ctx.strokeRect(x-1,height-h-1,barW+2,h+2);} this.ctx.fillStyle='#888'; this.ctx.font='10px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText(this.categories[i], x+barW/2, height+20); }
                 this.ctx.restore();

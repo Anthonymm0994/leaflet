@@ -227,7 +227,7 @@
                             max,
                             binSize,
                             numBins,
-                            maxCount: bins.reduce((max, bin) => Math.max(max, bin.length), 0)
+                            maxCount: (() => { let max = 0; for(let b=0; b<bins.length; b++) if(bins[b].length > max) max = bins[b].length; return max; })()
                         };
                     } else if (colType === 'time') {
                         let min = values[0];
@@ -251,7 +251,7 @@
                             max,
                             binSize,
                             numBins,
-                            maxCount: bins.reduce((max, bin) => Math.max(max, bin.length), 0)
+                            maxCount: (() => { let max = 0; for(let b=0; b<bins.length; b++) if(bins[b].length > max) max = bins[b].length; return max; })()
                         };
                     } else if (colType === 'string') {
                         // For categorical data, count unique values
