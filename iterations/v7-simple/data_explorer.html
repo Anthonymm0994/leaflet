@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple 3x3 Data Explorer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #e0e0e0; overflow: hidden; }
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .progress { width: 400px; height: 6px; background: #333; margin-top: 10px; border-radius: 3px; }
+        .progress-bar { height: 100%; background: #4a9eff; transition: width 0.1s; border-radius: 3px; }
+        #main { display: none; height: 100vh; padding: 8px; }
+        .header { background: #1a1a1a; padding: 8px 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .stats { display: flex; gap: 15px; font-size: 13px; }
+        .stats span { display: flex; align-items: center; gap: 5px; }
+        .stats strong { color: #4a9eff; }
+        button { background: #4a9eff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+        button:hover { background: #3a8eef; }
+        button:active { transform: scale(0.95); }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; height: calc(100% - 80px); }
+        .panel { background: #1a1a1a; border-radius: 4px; padding: 8px; position: relative; }
+        .panel-title { font-size: 13px; margin-bottom: 4px; font-weight: 500; }
+        canvas { position: absolute; top: 28px; left: 8px; right: 8px; bottom: 8px; cursor: crosshair; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div>Generating <strong>10,000,000</strong> rows...</div>
+        <div class="progress"><div class="progress-bar" id="progress"></div></div>
+        <div id="loadingStatus" style="margin-top: 8px; font-size: 12px; color: #999;"></div>
+    </div>
+    
+    <div id="main">
+        <div class="header">
+            <h3>Simple 3x3 Data Explorer</h3>
+            <div class="stats">
+                <span>Total: <strong>10,000,000</strong></span>
+                <span>Filtered: <strong id="filteredCount">10,000,000</strong></span>
+                <span>Selected: <strong id="percentFiltered">100%</strong></span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="resetAll()">🔄 Reset</button>
+                <button onclick="exportCSV()">💾 CSV</button>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <!-- Row 1 -->
+            <div class="panel"><div class="panel-title">Time Distribution</div><canvas id="timeCanvas"></canvas></div>
+            <div class="panel"><div class="panel-title">Strength Distribution</div><canvas id="strengthCanvas"></canvas></div>
+            <div class="panel"><div class="panel-title">Angle Distribution</div><canvas id="angleCanvas"></canvas></div>
+            
+            <!-- Row 2 -->
+            <div class="panel"><div class="panel-title">Width Distribution</div><canvas id="widthCanvas"></canvas></div>
+            <div class="panel"><div class="panel-title">Height Distribution</div><canvas id="heightCanvas"></canvas></div>
+            <div class="panel"><div class="panel-title">Category (4 options)</div><canvas id="categoryCanvas"></canvas></div>
+            
+            <!-- Row 3 -->
+            <div class="panel"><div class="panel-title">Score Distribution</div><canvas id="scoreCanvas"></canvas></div>
+            <div class="panel"><div class="panel-title">Department (8 options)</div><canvas id="departmentCanvas"></canvas></div>
+            <div class="panel"><div class="panel-title">Status (2 options)</div><canvas id="statusCanvas"></canvas></div>
+        </div>
+    </div>
+    
+    <script>
+        const ROWS = 10000000;
+        const BATCH_SIZE = 100000;
+
+        let data = {
+            width: null, height: null, angle: null, strength: null, timeSeconds: null,
+            category_4: null, category_2: null, score: null, department: null, status: null
+        };
+
+        let filteredIndices = new Uint8Array(ROWS);
+        let currentRows = ROWS;
+        let binCache = {};
+        let charts = {};
+        let filters = { width:null, height:null, strength:null, time:null, angle:null, category: new Set(), score:null, department: new Set(), status: new Set() };
+
+        function normalRandom(mean, stddev) {
+            const u1 = Math.random();
+            const u2 = Math.random();
+            const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+            return mean + z0 * stddev;
+        }
+
+        async function generateData() {
+            data.width = new Float32Array(ROWS);
+            data.height = new Float32Array(ROWS);
+            data.angle = new Float32Array(ROWS);
+            data.strength = new Float32Array(ROWS);
+            data.timeSeconds = new Float32Array(ROWS);
+            data.category_4 = new Uint8Array(ROWS);
+            data.category_2 = new Uint8Array(ROWS);
+            data.score = new Float32Array(ROWS);
+            data.department = new Uint8Array(ROWS);
+            data.status = new Uint8Array(ROWS);
+
+            let i = 0;
+            function batch() {
+                const end = Math.min(i + BATCH_SIZE, ROWS);
+                for (; i < end; i++) {
+                    data.width[i] = Math.max(0.1, normalRandom(50, 15));
+                    data.height[i] = Math.max(0.1, normalRandom(5, 2));
+                    data.angle[i] = Math.random() * 360;
+                    data.strength[i] = Math.max(0, Math.min(100, normalRandom(50, 20)));
+                    data.timeSeconds[i] = Math.random() * 86400;
+                    data.category_4[i] = Math.floor(Math.random() * 4);
+                    data.category_2[i] = Math.random() < 0.5 ? 0 : 1;
+                    data.score[i] = Math.max(0, Math.min(100, normalRandom(75, 15)));
+                    data.department[i] = Math.floor(Math.random() * 8);
+                    data.status[i] = Math.random() < 0.7 ? 1 : 0;
+                }
+                
+                const progress = (i / ROWS) * 100;
+                document.getElementById('progress').style.width = progress + '%';
+                document.getElementById('loadingStatus').textContent = `Generated ${i.toLocaleString()} rows...`;
+                
+                if (i < ROWS) {
+                    setTimeout(batch, 1);
+                } else {
+                    filteredIndices.fill(1);
+                    prebinData();
+                    createCharts();
+                    updateStats();
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('main').style.display = 'block';
+                }
+            }
+            batch();
+        }
+
+        function prebinData() {
+            // Histograms
+            const fields = ['width', 'height', 'strength', 'score'];
+            for (const field of fields) {
+                const values = data[field];
+                let min = values[0], max = values[0];
+                for (let i = 1; i < values.length; i++) {
+                    if (values[i] < min) min = values[i];
+                    if (values[i] > max) max = values[i];
+                }
+                const numBins = 100;
+                const binSize = (max - min) / numBins;
+                const bins = Array(numBins).fill().map(() => []);
+                for (let i = 0; i < values.length; i++) {
+                    const binIndex = Math.min(Math.floor((values[i] - min) / binSize), numBins - 1);
+                    bins[binIndex].push(i);
+                }
+                binCache[field] = { bins, min, max, binSize, numBins, maxCount: Math.max(...bins.map(bin => bin.length)) };
+            }
+
+            // Time
+            const timeBins = Array(24).fill().map(() => []);
+            for (let i = 0; i < data.timeSeconds.length; i++) {
+                const hour = Math.floor(data.timeSeconds[i] / 3600);
+                timeBins[hour].push(i);
+            }
+            binCache.time = { bins: timeBins, min: 0, max: 86400, binSize: 3600, numBins: 24, maxCount: Math.max(...timeBins.map(bin => bin.length)) };
+
+            // Angle
+            const angleBins = Array(36).fill().map(() => []);
+            for (let i = 0; i < data.angle.length; i++) {
+                const binIndex = Math.floor(data.angle[i] / 10);
+                angleBins[binIndex].push(i);
+            }
+            binCache.angle = { bins: angleBins, min: 0, max: 360, binSize: 10, numBins: 36, maxCount: Math.max(...angleBins.map(bin => bin.length)) };
+        }
+
+        class Chart {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 0; this.height = 0;
+                this.resize();
+                this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
+                this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
+                this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
+                this.canvas.addEventListener('click', this.onClick.bind(this));
+                window.addEventListener('resize', this.resize.bind(this));
+            }
+            resize() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                this.canvas.width = (rect.width - 16) * dpr;
+                this.canvas.height = (rect.height - 36) * dpr;
+                this.canvas.style.width = (rect.width - 16) + 'px';
+                this.canvas.style.height = (rect.height - 36) + 'px';
+                this.ctx.setTransform(dpr,0,0,dpr,0,0);
+                this.width = rect.width - 16; this.height = rect.height - 36;
+            }
+            clear() { this.ctx.fillStyle='#1a1a1a'; this.ctx.fillRect(0,0,this.width,this.height); }
+            getMousePos(e) { const r=this.canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)*(this.width/r.width), y:(e.clientY-r.top)*(this.height/r.height)}; }
+            onMouseDown(){} onMouseMove(){} onMouseUp(){} onClick(){}
+        }
+
+        class Histogram extends Chart {
+            constructor(canvasId, binData, label, formatter) {
+                super(canvasId); this.binData=binData; this.label=label; this.formatter=formatter; this.margin={top:10,right:10,bottom:40,left:50}; this.isInteracting=false; this._raf=false;
+            }
+            getFilterKey() { return this.label.toLowerCase(); }
+            isInChartArea(p) { return p.x>=this.margin.left && p.x<=this.width-this.margin.right && p.y>=this.margin.top && p.y<=this.height-this.margin.bottom; }
+            draw() {
+                this.clear();
+                const width=this.width-this.margin.left-this.margin.right; const height=this.height-this.margin.top-this.margin.bottom; const bins=this.binData.bins; const barWidth=width/bins.length;
+                const counts=new Float32Array(bins.length), filteredCounts=new Float32Array(bins.length);
+                for(let i=0;i<bins.length;i++){ const bi=bins[i]; counts[i]=bi.length; if(bi.length>1000){ let sampled=0; const step=Math.max(1,Math.floor(bi.length/1000)); for(let j=0;j<bi.length && sampled<1000;j+=step){ if(filteredIndices[bi[j]]) sampled++; } filteredCounts[i]=(sampled/Math.min(1000,bi.length))*bi.length; } else { filteredCounts[i]=bi.filter(idx=>filteredIndices[idx]).length; } }
+                const maxCount=this.binData.maxCount || Math.max(...counts);
+                this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top);
+                for(let i=0;i<bins.length;i++){ const x=i*barWidth; const h=(counts[i]/maxCount)*height; const fh=(filteredCounts[i]/maxCount)*height; this.ctx.fillStyle='#2a2a2a'; this.ctx.fillRect(x,height-h,barWidth-1,h); this.ctx.fillStyle='#4a9eff'; this.ctx.fillRect(x,height-fh,barWidth-1,fh); }
+                if(this.selection){ this.ctx.fillStyle='rgba(255,255,255,0.1)'; this.ctx.strokeStyle='#feca57'; this.ctx.lineWidth=2; const x1=this.selection[0]*barWidth; const x2=(this.selection[1]+1)*barWidth; this.ctx.fillRect(x1,0,x2-x1,height); this.ctx.strokeRect(x1,0,x2-x1,height);} 
+                this.ctx.strokeStyle='#444'; this.ctx.beginPath(); this.ctx.moveTo(0,height); this.ctx.lineTo(width,height); this.ctx.moveTo(0,0); this.ctx.lineTo(0,height); this.ctx.stroke();
+                this.ctx.restore();
+            }
+            onMouseDown(e){ const p=this.getMousePos(e); if(!this.isInChartArea(p)) return; const x=p.x-this.margin.left; const width=this.width-this.margin.left-this.margin.right; const bin=Math.floor(x/(width/this.binData.bins.length)); if(bin>=0&&bin<this.binData.bins.length){ this.isDragging=true; this.isInteracting=true; this.dragStart=bin; } }
+            onMouseMove(e){ const p=this.getMousePos(e); const x=p.x-this.margin.left; const width=this.width-this.margin.left-this.margin.right; if(this.isDragging && x>=0 && x<=width){ const bin=Math.floor(x/(width/this.binData.bins.length)); if(bin>=0&&bin<this.binData.bins.length){ this.selection=[Math.min(this.dragStart,bin), Math.max(this.dragStart,bin)]; if(!this._raf){ this._raf=true; requestAnimationFrame(()=>{ this._raf=false; this.draw(); }); } } } }
+            onMouseUp(){ if(this.isDragging && this.selection){ const key=this.getFilterKey(); filters[key]=[ this.binData.min + this.selection[0]*this.binData.binSize, this.binData.min + (this.selection[1]+1)*this.binData.binSize ]; applyFilters(); } this.isDragging=false; setTimeout(()=>{this.isInteracting=false;},100); }
+            onClick(e){ if(!this.isInteracting){ const p=this.getMousePos(e); if(this.isInChartArea(p)){ this.selection=null; const key=this.getFilterKey(); if(filters[key]){ filters[key]=null; applyFilters(); } this.draw(); } } }
+        }
+
+        class AngleChart extends Chart {
+            constructor(canvasId){ super(canvasId); this.isInteracting=false; }
+            draw(){
+                this.clear(); const cx=this.width/2, cy=this.height/2, radius=Math.min(cx,cy)-20, inner=radius*0.3; const bins=binCache.angle.bins, binSize=binCache.angle.binSize, maxCount=binCache.angle.maxCount;
+                this.ctx.save(); this.ctx.translate(0,0); this.ctx.strokeStyle='#2a2a2a'; this.ctx.lineWidth=0.5; for(let r=inner; r<=radius; r+=(radius-inner)/4){ this.ctx.beginPath(); this.ctx.arc(cx,cy,r,0,Math.PI*2); this.ctx.stroke(); }
+                for(let a=0;a<360;a+=30){ const rad=(a-90)*Math.PI/180; this.ctx.beginPath(); this.ctx.moveTo(cx+Math.cos(rad)*inner, cy+Math.sin(rad)*inner); this.ctx.lineTo(cx+Math.cos(rad)*radius, cy+Math.sin(rad)*radius); this.ctx.stroke(); }
+                for(let i=0;i<bins.length;i++){ const start=(i*binSize-90)*Math.PI/180, end=((i+1)*binSize-90)*Math.PI/180; const count=bins[i].filter(idx=>filteredIndices[idx]).length; if(count<1) continue; const scale=(count/maxCount)*(radius-inner); this.ctx.fillStyle='#4a9eff'; this.ctx.beginPath(); this.ctx.arc(cx,cy,inner,start,end); this.ctx.arc(cx,cy,inner+scale,end,start,true); this.ctx.closePath(); this.ctx.fill(); }
+                this.ctx.restore();
+            }
+            onMouseDown(e){ const p=this.getMousePos(e); const cx=this.width/2, cy=this.height/2; const dx=p.x-cx, dy=p.y-cy; const dist=Math.sqrt(dx*dx+dy*dy), radius=Math.min(cx,cy)-20; if(dist>=radius*0.3 && dist<=radius){ const ang=Math.atan2(dy,dx)*180/Math.PI+90; this.isDragging=true; this.dragStart=Math.floor(((ang+360)%360)/binCache.angle.binSize);} }
+            onMouseMove(e){ if(this.isDragging){ const p=this.getMousePos(e); const cx=this.width/2, cy=this.height/2; const dx=p.x-cx, dy=p.y-cy; const ang=Math.atan2(dy,dx)*180/Math.PI+90; const bin=Math.floor(((ang+360)%360)/binCache.angle.binSize); let s=this.dragStart, t=bin; if(Math.abs(t-s)>binCache.angle.numBins/2){ if(s<t) s+=binCache.angle.numBins; else t+=binCache.angle.numBins; } this.selection=[Math.min(s,t)%binCache.angle.numBins, Math.max(s,t)%binCache.angle.numBins]; this.draw(); } }
+            onMouseUp(){ if(this.isDragging && this.selection){ filters.angle=[ this.selection[0]*binCache.angle.binSize, (this.selection[1]+1)*binCache.angle.binSize ]; applyFilters(); } this.isDragging=false; }
+            onClick(){ if(!this.isInteracting && this.selection){ this.selection=null; filters.angle=null; applyFilters(); this.draw(); } }
+        }
+
+        class CategoryChart extends Chart {
+            constructor(canvasId, categories, filterKey){ super(canvasId); this.categories=categories; this.filterKey=filterKey; this.margin={top:20,right:10,bottom:40,left:60}; this.selected=new Set(); }
+            draw(){
+                this.clear(); const width=this.width-this.margin.left-this.margin.right; const height=this.height-this.margin.top-this.margin.bottom; const counts=new Array(this.categories.length).fill(0), totals=new Array(this.categories.length).fill(0); const step=Math.max(1, Math.floor(currentRows/1000000));
+                const dataField = this.filterKey==='category' ? data.category_4 : this.filterKey==='department' ? data.department : data.status;
+                for(let i=0;i<currentRows;i+=step){ totals[dataField[i]]++; if(filteredIndices[i]) counts[dataField[i]]++; }
+                for(let i=0;i<this.categories.length;i++){ counts[i]*=step; totals[i]*=step; }
+                const maxCount=Math.max(...totals); const colors=['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#feca57','#ff9ff3','#a8e6cf','#dda0dd']; this.ctx.save(); this.ctx.translate(this.margin.left,this.margin.top);
+                const totalBar=width*0.8, gapW=width*0.2, barW=totalBar/this.categories.length, gap=gapW/(this.categories.length+1);
+                for(let i=0;i<this.categories.length;i++){ const x=gap+i*(barW+gap); const h=(totals[i]/maxCount)*height; const fh=(counts[i]/maxCount)*height; this.ctx.fillStyle='#2a2a2a'; this.ctx.fillRect(x,height-h,barW,h); this.ctx.fillStyle= this.selected.size===0 || this.selected.has(i) ? colors[i%colors.length] : '#444'; this.ctx.fillRect(x,height-fh,barW,fh); if(this.selected.has(i)){ this.ctx.strokeStyle='#feca57'; this.ctx.lineWidth=2; this.ctx.strokeRect(x-1,height-h-1,barW+2,h+2);} this.ctx.fillStyle='#888'; this.ctx.font='10px -apple-system, sans-serif'; this.ctx.textAlign='center'; this.ctx.fillText(this.categories[i], x+barW/2, height+20); }
+                this.ctx.restore();
+            }
+            onMouseDown(e){ const p=this.getMousePos(e); const width=this.width-this.margin.left-this.margin.right; const height=this.height-this.margin.top-this.margin.bottom; const totalBar=width*0.8, gapW=width*0.2, barW=totalBar/this.categories.length, gap=gapW/(this.categories.length+1); const x=p.x-this.margin.left; const y=p.y-this.margin.top; for(let i=0;i<this.categories.length;i++){ const bx=gap+i*(barW+gap); if(x>=bx && x<=bx+barW && y>=0 && y<=height){ if(this.selected.has(i)) this.selected.delete(i); else this.selected.add(i); filters[this.filterKey].clear(); if(this.selected.size>0){ this.selected.forEach(c=>filters[this.filterKey].add(c)); } applyFilters(); return; } } }
+        }
+
+        function createCharts() {
+            charts.time = new Histogram('timeCanvas', binCache.time, 'Time', (v) => {
+                const hours = Math.floor(v / 3600); const minutes = Math.floor((v % 3600) / 60);
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            });
+            charts.strength = new Histogram('strengthCanvas', binCache.strength, 'Strength', (v) => v.toFixed(2));
+            charts.angle = new AngleChart('angleCanvas');
+            charts.width = new Histogram('widthCanvas', binCache.width, 'Width', (v) => v.toFixed(2));
+            charts.height = new Histogram('heightCanvas', binCache.height, 'Height', (v) => v.toFixed(2));
+            charts.category = new CategoryChart('categoryCanvas', ['A', 'B', 'C', 'D'], 'category');
+            charts.score = new Histogram('scoreCanvas', binCache.score, 'Score', (v) => v.toFixed(1));
+            charts.department = new CategoryChart('departmentCanvas', ['Eng','Sales','Mkt','HR','Fin','Ops','Legal','Supp'], 'department');
+            charts.status = new CategoryChart('statusCanvas', ['Inactive', 'Active'], 'status');
+            Object.values(charts).forEach(chart => chart.draw());
+        }
+
+        function applyFilters() {
+            const newIndices = new Uint8Array(ROWS); newIndices.fill(1);
+            const rangeFilters = ['width', 'height', 'strength', 'time', 'angle', 'score'];
+            for (const field of rangeFilters) {
+                const filter = filters[field];
+                if (filter && Array.isArray(filter) && filter.length === 2) {
+                    const [min, max] = filter; const dataField = field === 'time' ? data.timeSeconds : data[field];
+                    for (let i = 0; i < ROWS; i++) { if (newIndices[i] && (dataField[i] < min || dataField[i] > max)) { newIndices[i] = 0; } }
+                }
+            }
+            const categoryFilters = ['category', 'department', 'status'];
+            for (const field of categoryFilters) {
+                const filter = filters[field];
+                if (filter && filter.size > 0) {
+                    const dataField = field === 'category' ? data.category_4 : data[field];
+                    for (let i = 0; i < ROWS; i++) { if (newIndices[i] && !filter.has(dataField[i])) { newIndices[i] = 0; } }
+                }
+            }
+            filteredIndices = newIndices; updateStats(); Object.values(charts).forEach(chart => chart.draw());
+        }
+
+        function updateStats() {
+            const totalCount = ROWS; const filteredCount = filteredIndices.reduce((sum, val) => sum + val, 0); const percent = totalCount > 0 ? ((filteredCount / totalCount) * 100).toFixed(1) : 0;
+            document.getElementById('filteredCount').textContent = formatCount(filteredCount); document.getElementById('percentFiltered').textContent = percent + '%';
+        }
+
+        function formatCount(count) { if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M'; if (count >= 1000) return (count / 1000).toFixed(1) + 'K'; return count.toString(); }
+
+        function resetAll() {
+            for (const key of Object.keys(filters)) { if (filters[key] instanceof Set) { filters[key].clear(); } else { filters[key] = null; } }
+            Object.values(charts).forEach(chart => { if (chart.selected) chart.selected.clear(); if (chart.selection) chart.selection = null; });
+            filteredIndices.fill(1); updateStats(); Object.values(charts).forEach(chart => chart.draw());
+        }
+
+        function exportCSV() {
+            const headers = ['width', 'height', 'angle', 'strength', 'timeSeconds', 'category_4', 'category_2', 'score', 'department', 'status'];
+            const filteredData = []; for (let i = 0; i < ROWS; i++) { if (filteredIndices[i]) { const row = headers.map(header => data[header][i]); filteredData.push(row); } }
+            const csvContent = [headers.join(','), ...filteredData.map(row => row.join(','))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' }); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'filtered_data.csv'; a.click(); window.URL.revokeObjectURL(url);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { generateData(); });
+    </script>
+</body>
+</html>
