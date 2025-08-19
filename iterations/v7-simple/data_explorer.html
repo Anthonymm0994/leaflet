@@ -18,10 +18,10 @@
         button { background: #4a9eff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
         button:hover { background: #3a8eef; }
         button:active { transform: scale(0.95); }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; height: calc(100% - 80px); }
-        .panel { background: #1a1a1a; border-radius: 4px; padding: 8px; position: relative; }
-        .panel-title { font-size: 13px; margin-bottom: 4px; font-weight: 500; }
-        canvas { position: absolute; top: 28px; left: 8px; right: 8px; bottom: 8px; cursor: crosshair; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 4px; height: calc(100vh - 70px); }
+        .panel { background: #1a1a1a; border-radius: 4px; padding: 4px; position: relative; }
+        .panel-title { font-size: 11px; margin-bottom: 2px; font-weight: 500; }
+        canvas { position: absolute; top: 18px; left: 4px; right: 4px; bottom: 4px; cursor: crosshair; }
     </style>
 </head>
 <body>
@@ -186,12 +186,12 @@
             resize() {
                 const rect = this.canvas.parentElement.getBoundingClientRect();
                 const dpr = window.devicePixelRatio || 1;
-                this.canvas.width = (rect.width - 16) * dpr;
-                this.canvas.height = (rect.height - 36) * dpr;
-                this.canvas.style.width = (rect.width - 16) + 'px';
-                this.canvas.style.height = (rect.height - 36) + 'px';
+                this.canvas.width = (rect.width - 8) * dpr;
+                this.canvas.height = (rect.height - 22) * dpr;
+                this.canvas.style.width = (rect.width - 8) + 'px';
+                this.canvas.style.height = (rect.height - 22) + 'px';
                 this.ctx.setTransform(dpr,0,0,dpr,0,0);
-                this.width = rect.width - 16; this.height = rect.height - 36;
+                this.width = rect.width - 8; this.height = rect.height - 22;
             }
             clear() { this.ctx.fillStyle='#1a1a1a'; this.ctx.fillRect(0,0,this.width,this.height); }
             getMousePos(e) { const r=this.canvas.getBoundingClientRect(); return {x:(e.clientX-r.left)*(this.width/r.width), y:(e.clientY-r.top)*(this.height/r.height)}; }
@@ -200,7 +200,7 @@
 
         class Histogram extends Chart {
             constructor(canvasId, binData, label, formatter) {
-                super(canvasId); this.binData=binData; this.label=label; this.formatter=formatter; this.margin={top:10,right:10,bottom:40,left:50}; this.isInteracting=false; this._raf=false;
+                super(canvasId); this.binData=binData; this.label=label; this.formatter=formatter; this.margin={top:5,right:5,bottom:15,left:25}; this.isInteracting=false; this._raf=false;
             }
             getFilterKey() { return this.label.toLowerCase(); }
             isInChartArea(p) { return p.x>=this.margin.left && p.x<=this.width-this.margin.right && p.y>=this.margin.top && p.y<=this.height-this.margin.bottom; }
@@ -238,7 +238,7 @@
         }
 
         class CategoryChart extends Chart {
-            constructor(canvasId, categories, filterKey){ super(canvasId); this.categories=categories; this.filterKey=filterKey; this.margin={top:20,right:10,bottom:40,left:60}; this.selected=new Set(); }
+            constructor(canvasId, categories, filterKey){ super(canvasId); this.categories=categories; this.filterKey=filterKey; this.margin={top:5,right:5,bottom:20,left:30}; this.selected=new Set(); }
             draw(){
                 this.clear(); const width=this.width-this.margin.left-this.margin.right; const height=this.height-this.margin.top-this.margin.bottom; const counts=new Array(this.categories.length).fill(0), totals=new Array(this.categories.length).fill(0); const step=Math.max(1, Math.floor(currentRows/1000000));
                 const dataField = this.filterKey==='category' ? data.category_4 : this.filterKey==='department' ? data.department : data.status;
