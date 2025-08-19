@@ -93,6 +93,42 @@
             color: white;
         }
         
+        .zoom-controls {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            display: flex;
+            gap: 2px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .panel:hover .zoom-controls {
+            opacity: 1;
+        }
+        
+        .zoom-btn {
+            background: rgba(74, 158, 255, 0.8);
+            border: none;
+            color: white;
+            padding: 2px 4px;
+            border-radius: 2px;
+            font-size: 10px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .zoom-btn:hover {
+            background: #4a9eff;
+        }
+        
+        .panel.zoomed {
+            transform: scale(1.2);
+            z-index: 100;
+            border-color: #feca57;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        
         canvas { 
             position: absolute; 
             top: 30px; 
@@ -132,8 +168,11 @@
                 <span>Selected: <strong id="percentFiltered">100%</strong></span>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button onclick="resetLayout()">📐 Reset Layout</button>
-                <button onclick="resetAll()">🔄 Reset Filters</button>
+                <button onclick="switchLayout('2x3')">2×3 Grid</button>
+                <button onclick="switchLayout('3x2')">3×2 Grid</button>
+                <button onclick="switchLayout('1x6')">Single Row</button>
+                <button onclick="resetLayout()">📐 Reset</button>
+                <button onclick="resetAll()">🔄 Filters</button>
                 <button onclick="exportCSV()">💾 CSV</button>
             </div>
         </div>
@@ -141,6 +180,11 @@
         <div class="grid-container" id="gridContainer">
             <!-- Draggable/Resizable Panels -->
             <div class="panel" data-chart="time">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'in')">+</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'out')">−</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'reset')">↻</button>
+                </div>
                 <div class="panel-header">
                     <div class="panel-title">Time Distribution (24h)</div>
                     <div class="panel-controls">
@@ -152,55 +196,85 @@
             </div>
             
             <div class="panel" data-chart="strength">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'in')">+</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'out')">−</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'reset')">↻</button>
+                </div>
                 <div class="panel-header">
                     <div class="panel-title">Strength Distribution</div>
                     <div class="panel-controls">
                         <button class="control-btn" onclick="maximizePanel(this)">⛶</button>
                         <button class="control-btn" onclick="minimizePanel(this)">−</button>
+                        <button class="control-btn" onclick="fullscreenPanel(this)">⛶⛶</button>
                     </div>
                 </div>
                 <canvas id="strengthCanvas"></canvas>
             </div>
             
             <div class="panel" data-chart="angle">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'in')">+</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'out')">−</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'reset')">↻</button>
+                </div>
                 <div class="panel-header">
                     <div class="panel-title">Angle Distribution</div>
                     <div class="panel-controls">
                         <button class="control-btn" onclick="maximizePanel(this)">⛶</button>
                         <button class="control-btn" onclick="minimizePanel(this)">−</button>
+                        <button class="control-btn" onclick="fullscreenPanel(this)">⛶⛶</button>
                     </div>
                 </div>
                 <canvas id="angleCanvas"></canvas>
             </div>
             
             <div class="panel" data-chart="width">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'in')">+</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'out')">−</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'reset')">↻</button>
+                </div>
                 <div class="panel-header">
                     <div class="panel-title">Width Distribution</div>
                     <div class="panel-controls">
                         <button class="control-btn" onclick="maximizePanel(this)">⛶</button>
                         <button class="control-btn" onclick="minimizePanel(this)">−</button>
+                        <button class="control-btn" onclick="fullscreenPanel(this)">⛶⛶</button>
                     </div>
                 </div>
                 <canvas id="widthCanvas"></canvas>
             </div>
             
             <div class="panel" data-chart="height">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'in')">+</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'out')">−</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'reset')">↻</button>
+                </div>
                 <div class="panel-header">
                     <div class="panel-title">Height Distribution</div>
                     <div class="panel-controls">
                         <button class="control-btn" onclick="maximizePanel(this)">⛶</button>
                         <button class="control-btn" onclick="minimizePanel(this)">−</button>
+                        <button class="control-btn" onclick="fullscreenPanel(this)">⛶⛶</button>
                     </div>
                 </div>
                 <canvas id="heightCanvas"></canvas>
             </div>
             
             <div class="panel" data-chart="category">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'in')">+</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'out')">−</button>
+                    <button class="zoom-btn" onclick="zoomPanel(this, 'reset')">↻</button>
+                </div>
                 <div class="panel-header">
                     <div class="panel-title">Category Distribution</div>
                     <div class="panel-controls">
                         <button class="control-btn" onclick="maximizePanel(this)">⛶</button>
                         <button class="control-btn" onclick="minimizePanel(this)">−</button>
+                        <button class="control-btn" onclick="fullscreenPanel(this)">⛶⛶</button>
                     </div>
                 </div>
                 <canvas id="categoryCanvas"></canvas>
@@ -929,6 +1003,114 @@
             }
         }
         
+        function zoomPanel(btn, action) {
+            const panel = btn.closest('.panel');
+            const currentScale = panel.style.transform.match(/scale\(([\d.]+)\)/);
+            let scale = currentScale ? parseFloat(currentScale[1]) : 1;
+            
+            if (action === 'in') {
+                scale = Math.min(scale * 1.2, 3);
+            } else if (action === 'out') {
+                scale = Math.max(scale / 1.2, 0.5);
+            } else if (action === 'reset') {
+                scale = 1;
+            }
+            
+            if (scale === 1) {
+                panel.style.transform = '';
+                panel.classList.remove('zoomed');
+            } else {
+                panel.style.transform = `scale(${scale})`;
+                panel.classList.add('zoomed');
+            }
+            
+            // Resize chart after zoom
+            setTimeout(() => {
+                const chartType = panel.dataset.chart;
+                if (charts[chartType]) {
+                    charts[chartType].resize();
+                    charts[chartType].draw();
+                }
+            }, 50);
+        }
+        
+        function fullscreenPanel(btn) {
+            const panel = btn.closest('.panel');
+            
+            if (panel.style.position === 'fixed') {
+                // Exit fullscreen
+                panel.style.position = '';
+                panel.style.top = '';
+                panel.style.left = '';
+                panel.style.width = '';
+                panel.style.height = '';
+                panel.style.zIndex = '';
+                panel.style.transform = '';
+                panel.classList.remove('zoomed');
+                btn.textContent = '⛶⛶';
+                
+                // Show other panels
+                document.querySelectorAll('.panel').forEach(p => {
+                    if (p !== panel) p.style.display = 'block';
+                });
+                
+                // Show header
+                document.querySelector('.header').style.display = 'flex';
+            } else {
+                // Enter fullscreen
+                panel.style.position = 'fixed';
+                panel.style.top = '0';
+                panel.style.left = '0';
+                panel.style.width = '100vw';
+                panel.style.height = '100vh';
+                panel.style.zIndex = '1000';
+                panel.style.transform = '';
+                panel.classList.remove('zoomed');
+                btn.textContent = '✕';
+                
+                // Hide other panels
+                document.querySelectorAll('.panel').forEach(p => {
+                    if (p !== panel) p.style.display = 'none';
+                });
+                
+                // Hide header
+                document.querySelector('.header').style.display = 'none';
+            }
+            
+            // Resize chart after fullscreen change
+            setTimeout(() => {
+                const chartType = panel.dataset.chart;
+                if (charts[chartType]) {
+                    charts[chartType].resize();
+                    charts[chartType].draw();
+                }
+            }, 100);
+        }
+        
+        function switchLayout(layout) {
+            const container = document.getElementById('gridContainer');
+            
+            switch(layout) {
+                case '2x3':
+                    container.style.gridTemplateColumns = '1fr 1fr 1fr';
+                    container.style.gridTemplateRows = '1fr 1fr';
+                    break;
+                case '3x2':
+                    container.style.gridTemplateColumns = '1fr 1fr';
+                    container.style.gridTemplateRows = '1fr 1fr 1fr';
+                    break;
+                case '1x6':
+                    container.style.gridTemplateColumns = 'repeat(6, 1fr)';
+                    container.style.gridTemplateRows = '1fr';
+                    break;
+                default:
+                    container.style.gridTemplateColumns = '1fr 1fr 1fr';
+                    container.style.gridTemplateRows = '1fr 1fr';
+            }
+            
+            resetLayout();
+        }
+        
         function resetLayout() {
             document.querySelectorAll('.panel').forEach(panel => {
                 panel.style.gridColumn = '';
@@ -936,12 +1118,22 @@
                 panel.style.display = 'block';
                 panel.style.width = '';
                 panel.style.height = '';
+                panel.style.position = '';
+                panel.style.top = '';
+                panel.style.left = '';
+                panel.style.zIndex = '';
+                panel.style.transform = '';
+                panel.classList.remove('zoomed');
             });
             
             document.querySelectorAll('.control-btn').forEach(btn => {
                 if (btn.textContent === '⧉') btn.textContent = '⛶';
                 if (btn.textContent === '+') btn.textContent = '−';
+                if (btn.textContent === '✕') btn.textContent = '⛶⛶';
             });
+            
+            // Show header
+            document.querySelector('.header').style.display = 'flex';
             
             setTimeout(() => {
                 Object.values(charts).forEach(chart => {
