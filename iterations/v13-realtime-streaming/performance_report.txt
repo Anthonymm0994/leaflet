@@ -1,0 +1,83 @@
+
+V13 Real-Time Streaming Dashboard Engine - Performance Report
+======================================================================
+
+STREAMING PERFORMANCE RESULTS
+----------------------------------------
+
+
+RANDOM DATA STREAMING:
+  100 points: 0.0ms generation, 15.48ms avg update, 0.018MB
+  500 points: 1.0ms generation, 15.55ms avg update, 0.092MB
+  1,000 points: 1.51ms generation, 15.53ms avg update, 0.185MB
+  5,000 points: 11.02ms generation, 15.42ms avg update, 0.924MB
+  10,000 points: 22.92ms generation, 15.47ms avg update, 1.848MB
+
+TRENDING DATA STREAMING:
+  100 points: 1.62ms generation, 15.44ms avg update, 0.018MB
+  500 points: 0.58ms generation, 15.37ms avg update, 0.092MB
+  1,000 points: 1.75ms generation, 15.37ms avg update, 0.185MB
+  5,000 points: 8.03ms generation, 15.35ms avg update, 0.925MB
+  10,000 points: 19.06ms generation, 15.41ms avg update, 1.855MB
+
+SEASONAL DATA STREAMING:
+  100 points: 0.99ms generation, 15.53ms avg update, 0.018MB
+  500 points: 0.99ms generation, 15.57ms avg update, 0.092MB
+  1,000 points: 1.01ms generation, 15.54ms avg update, 0.185MB
+  5,000 points: 9.02ms generation, 15.42ms avg update, 0.924MB
+  10,000 points: 18.01ms generation, 15.47ms avg update, 1.849MB
+
+CLUSTERED DATA STREAMING:
+  100 points: 0.0ms generation, 15.5ms avg update, 0.019MB
+  500 points: 0.99ms generation, 15.54ms avg update, 0.092MB
+  1,000 points: 2.01ms generation, 15.54ms avg update, 0.185MB
+  5,000 points: 13.05ms generation, 15.49ms avg update, 0.924MB
+  10,000 points: 24.67ms generation, 15.52ms avg update, 1.847MB
+
+ANOMALY DATA STREAMING:
+  100 points: 1.0ms generation, 15.49ms avg update, 0.018MB
+  500 points: 0.51ms generation, 15.49ms avg update, 0.092MB
+  1,000 points: 2.76ms generation, 15.5ms avg update, 0.184MB
+  5,000 points: 13.12ms generation, 15.61ms avg update, 0.919MB
+  10,000 points: 28.08ms generation, 15.46ms avg update, 1.84MB
+
+
+REAL-TIME LATENCY RESULTS
+----------------------------------------
+
+  16ms target: 1.859s actual, 0.859s error, 62.5 FPS
+  33ms target: 1.402s actual, 0.402s error, 30.3 FPS
+  50ms target: 1.244s actual, 0.244s error, 20.0 FPS
+  100ms target: 1.092s actual, 0.092s error, 10.0 FPS
+  200ms target: 1.009s actual, 0.009s error, 5.0 FPS
+  500ms target: 1.026s actual, 0.026s error, 2.0 FPS
+
+
+MEMORY EFFICIENCY RESULTS
+----------------------------------------
+
+  1,000 points: 0.185MB, 193.8 bytes/point, 674434.0 points/sec
+  5,000 points: 0.924MB, 193.8 bytes/point, 407254.0 points/sec
+  10,000 points: 1.848MB, 193.8 bytes/point, 456956.0 points/sec
+  50,000 points: 9.24MB, 193.8 bytes/point, 415077.0 points/sec
+  100,000 points: 18.48MB, 193.8 bytes/point, 416699.0 points/sec
+
+
+PERFORMANCE SUMMARY
+----------------------------------------
+
+- Fastest streaming: 0.0ms
+- Lowest latency: 16ms
+- Most efficient: 193.8 bytes/point
+- Highest throughput: 1.855 MB
+
+RECOMMENDATIONS
+----------------------------------------
+
+- Use 'trending' data for smooth visualizations
+- Target 50-100ms latency for real-time feel
+- Process data in chunks of 1000-5000 for optimal performance
+- Monitor memory usage for datasets >50K points
+
+======================================================================
+Performance testing completed successfully!

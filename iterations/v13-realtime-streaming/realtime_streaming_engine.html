@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 V13: Real-Time Streaming Dashboard Engine</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+            color: #ffffff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #loading-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #00ff88;
+            z-index: 1000;
+            display: none;
+        }
+
+        #dashboard {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 8px;
+            padding: 8px;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .chart-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .chart-panel:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(0, 255, 136, 0.3);
+        }
+
+        .chart-panel canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+        }
+
+        .chart-title {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #00ff88;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2px 6px;
+            border-radius: 4px;
+            z-index: 10;
+        }
+
+        .streaming-info {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            font-size: 14px;
+            z-index: 100;
+        }
+
+        .streaming-info h3 {
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        .streaming-info .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+
+        .controls-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            z-index: 100;
+        }
+
+        .controls-panel button {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid rgba(0, 255, 136, 0.5);
+            color: #00ff88;
+            padding: 8px 12px;
+            margin: 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .controls-panel button:hover {
+            background: rgba(0, 255, 136, 0.3);
+            border-color: rgba(0, 255, 136, 0.8);
+        }
+
+        .controls-panel button.active {
+            background: rgba(0, 255, 136, 0.4);
+            border-color: #00ff88;
+        }
+
+        .performance-stats {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            font-size: 12px;
+            z-index: 100;
+        }
+
+        .performance-stats h3 {
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        .performance-stats .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+
+        .gesture-info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            font-size: 12px;
+            z-index: 100;
+            max-width: 300px;
+        }
+
+        .gesture-info h3 {
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        .gesture-info .gesture {
+            margin: 5px 0;
+            padding: 5px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .gesture-info .key {
+            background: rgba(0, 255, 136, 0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+
+        .data-stream {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid rgba(0, 255, 136, 0.5);
+            z-index: 200;
+            display: none;
+            text-align: center;
+        }
+
+        .data-stream h2 {
+            color: #00ff88;
+            margin-bottom: 15px;
+        }
+
+        .data-stream .stream-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        .data-stream button {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid rgba(0, 255, 136, 0.5);
+            color: #00ff88;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .data-stream button:hover {
+            background: rgba(0, 255, 136, 0.3);
+        }
+
+        .data-stream button.danger {
+            background: rgba(255, 0, 0, 0.2);
+            border-color: rgba(255, 0, 0, 0.5);
+            color: #ff6b6b;
+        }
+
+        .data-stream button.danger:hover {
+            background: rgba(255, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-indicator">🚀 Initializing Real-Time Engine...</div>
+    
+    <div id="dashboard">
+        <!-- Chart panels will be dynamically created -->
+    </div>
+
+    <div class="streaming-info">
+        <h3>📡 Streaming Status</h3>
+        <div class="metric">
+            <span>Status:</span>
+            <span id="stream-status">Initializing</span>
+        </div>
+        <div class="metric">
+            <span>Data Rate:</span>
+            <span id="data-rate">0</span>
+        </div>
+        <div class="metric">
+            <span>Latency:</span>
+            <span id="latency">0ms</span>
+        </div>
+        <div class="metric">
+            <span>Buffer:</span>
+            <span id="buffer-size">0</span>
+        </div>
+    </div>
+
+    <div class="gesture-info">
+        <h3>🎮 Controls</h3>
+        <div class="gesture">
+            <span class="key">Mouse</span> Click to select, drag to filter
+        </div>
+        <div class="gesture">
+            <span class="key">Wheel</span> Zoom in/out
+        </div>
+        <div class="gesture">
+            <span class="key">Ctrl+Click</span> Multi-select
+        </div>
+        <div class="gesture">
+            <span class="key">Space</span> Pause/resume streaming
+        </div>
+        <div class="gesture">
+            <span class="key">R</span> Reset view
+        </div>
+        <div class="gesture">
+            <span class="key">F</span> Fullscreen chart
+        </div>
+    </div>
+
+    <div class="controls-panel">
+        <h3>🎛️ Controls</h3>
+        <button id="start-stream">▶️ Start</button>
+        <button id="pause-stream">⏸️ Pause</button>
+        <button id="stop-stream">⏹️ Stop</button>
+        <button id="reset-all">🔄 Reset</button>
+        <button id="export-data">💾 Export</button>
+        <button id="fullscreen">⛶ Fullscreen</button>
+    </div>
+
+    <div class="performance-stats">
+        <h3>⚡ Performance</h3>
+        <div class="metric">
+            <span>FPS:</span>
+            <span id="fps">0</span>
+        </div>
+        <div class="metric">
+            <span>Render Time:</span>
+            <span id="render-time">0ms</span>
+        </div>
+        <div class="metric">
+            <span>Memory:</span>
+            <span id="memory-usage">0MB</span>
+        </div>
+        <div class="metric">
+            <span>Charts:</span>
+            <span id="active-charts">0</span>
+        </div>
+    </div>
+
+    <div class="data-stream" id="data-stream-modal">
+        <h2>📊 Data Stream Configuration</h2>
+        <div class="stream-controls">
+            <button id="generate-data">Generate Data</button>
+            <button id="simulate-stream">Simulate Stream</button>
+            <button id="load-sample">Load Sample</button>
+            <button id="close-modal" class="danger">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // Real-Time Streaming Dashboard Engine
+        class RealTimeStreamingEngine {
+            constructor() {
+                this.charts = [];
+                this.dataStream = null;
+                this.isStreaming = false;
+                this.streamRate = 100; // ms between updates
+                this.dataBuffer = [];
+                this.maxBufferSize = 10000;
+                this.performanceStats = {
+                    fps: 0,
+                    renderTime: 0,
+                    memoryUsage: 0,
+                    activeCharts: 0
+                };
+                this.lastFrameTime = performance.now();
+                this.frameCount = 0;
+                this.chartConfigs = [
+                    { type: 'histogram', title: 'Real-Time Histogram', data: 'value' },
+                    { type: 'scatter', title: 'Live Scatter', data: 'x,y' },
+                    { type: 'bar', title: 'Dynamic Bars', data: 'category' },
+                    { type: 'line', title: 'Time Series', data: 'time,value' },
+                    { type: 'heatmap', title: 'Live Heatmap', data: 'x,y,intensity' },
+                    { type: 'gauge', title: 'Metric Gauge', data: 'value' },
+                    { type: 'network', title: 'Network Graph', data: 'nodes,edges' },
+                    { type: 'surface', title: '3D Surface', data: 'x,y,z' }
+                ];
+            }
+
+            async init() {
+                console.log('🚀 Initializing Real-Time Streaming Dashboard Engine...');
+                
+                this.setupDashboard();
+                this.setupEventListeners();
+                this.startPerformanceMonitoring();
+                
+                // Show data stream modal
+                setTimeout(() => {
+                    document.getElementById('data-stream-modal').style.display = 'block';
+                }, 1000);
+                
+                console.log('✅ Real-Time Engine initialized successfully!');
+            }
+
+            setupDashboard() {
+                const dashboard = document.getElementById('dashboard');
+                dashboard.innerHTML = '';
+
+                this.chartConfigs.forEach((config, index) => {
+                    const panel = this.createChartPanel(config, index);
+                    dashboard.appendChild(panel);
+                });
+            }
+
+            createChartPanel(config, index) {
+                const panel = document.createElement('div');
+                panel.className = 'chart-panel';
+                panel.style.gridArea = `${Math.floor(index / 4) + 1} / ${(index % 4) + 1}`;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = 400;
+                canvas.height = 300;
+                
+                const title = document.createElement('div');
+                title.className = 'chart-title';
+                title.textContent = config.title;
+
+                panel.appendChild(title);
+                panel.appendChild(canvas);
+
+                // Create chart instance
+                const chart = this.createChart(config.type, canvas, config);
+                this.charts.push(chart);
+
+                return panel;
+            }
+
+            createChart(type, canvas, config) {
+                switch (type) {
+                    case 'histogram':
+                        return new StreamingHistogramChart(canvas, config);
+                    case 'scatter':
+                        return new StreamingScatterChart(canvas, config);
+                    case 'bar':
+                        return new StreamingBarChart(canvas, config);
+                    case 'line':
+                        return new StreamingLineChart(canvas, config);
+                    case 'heatmap':
+                        return new StreamingHeatmapChart(canvas, config);
+                    case 'gauge':
+                        return new StreamingGaugeChart(canvas, config);
+                    case 'network':
+                        return new StreamingNetworkChart(canvas, config);
+                    case 'surface':
+                        return new StreamingSurfaceChart(canvas, config);
+                    default:
+                        return new StreamingBaseChart(canvas, config);
+                }
+            }
+
+            setupEventListeners() {
+                // Control buttons
+                document.getElementById('start-stream').addEventListener('click', () => this.startStreaming());
+                document.getElementById('pause-stream').addEventListener('click', () => this.pauseStreaming());
+                document.getElementById('stop-stream').addEventListener('click', () => this.stopStreaming());
+                document.getElementById('reset-all').addEventListener('click', () => this.resetAll());
+                document.getElementById('export-data').addEventListener('click', () => this.exportData());
+                document.getElementById('fullscreen').addEventListener('click', () => this.toggleFullscreen());
+
+                // Modal buttons
+                document.getElementById('generate-data').addEventListener('click', () => this.generateData());
+                document.getElementById('simulate-stream').addEventListener('click', () => this.simulateStream());
+                document.getElementById('load-sample').addEventListener('click', () => this.loadSampleData());
+                document.getElementById('close-modal').addEventListener('click', () => this.closeModal());
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+                
+                // Touch gestures
+                this.setupTouchGestures();
+            }
+
+            setupTouchGestures() {
+                let startDistance = 0;
+                let startAngle = 0;
+                let isMultiTouch = false;
+
+                document.addEventListener('touchstart', (e) => {
+                    if (e.touches.length === 2) {
+                        isMultiTouch = true;
+                        startDistance = this.getTouchDistance(e.touches[0], e.touches[1]);
+                        startAngle = this.getTouchAngle(e.touches[0], e.touches[1]);
+                    }
+                });
+
+                document.addEventListener('touchmove', (e) => {
+                    if (isMultiTouch && e.touches.length === 2) {
+                        e.preventDefault();
+                        const currentDistance = this.getTouchDistance(e.touches[0], e.touches[1]);
+                        const currentAngle = this.getTouchAngle(e.touches[0], e.touches[1]);
+                        
+                        const scale = currentDistance / startDistance;
+                        const rotation = currentAngle - startAngle;
+                        
+                        this.handleMultiTouchGesture(scale, rotation);
+                    }
+                });
+
+                document.addEventListener('touchend', () => {
+                    isMultiTouch = false;
+                });
+            }
+
+            getTouchDistance(touch1, touch2) {
+                const dx = touch1.clientX - touch2.clientX;
+                const dy = touch1.clientY - touch2.clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            getTouchAngle(touch1, touch2) {
+                return Math.atan2(touch2.clientY - touch1.clientY, touch2.clientX - touch1.clientX) * 180 / Math.PI;
+            }
+
+            handleMultiTouchGesture(scale, rotation) {
+                // Apply zoom and rotation to focused chart
+                const focusedChart = this.getFocusedChart();
+                if (focusedChart && focusedChart.handleMultiTouch) {
+                    focusedChart.handleMultiTouch(scale, rotation);
+                }
+            }
+
+            getFocusedChart() {
+                // Return the chart that currently has focus
+                return this.charts.find(chart => chart.isFocused) || this.charts[0];
+            }
+
+            handleKeyboard(e) {
+                switch (e.key.toLowerCase()) {
+                    case ' ':
+                        e.preventDefault();
+                        this.isStreaming ? this.pauseStreaming() : this.startStreaming();
+                        break;
+                    case 'r':
+                        this.resetAll();
+                        break;
+                    case 'f':
+                        this.toggleFullscreen();
+                        break;
+                    case 'escape':
+                        this.closeModal();
+                        break;
+                }
+            }
+
+            startStreaming() {
+                if (this.isStreaming) return;
+                
+                this.isStreaming = true;
+                document.getElementById('stream-status').textContent = 'Streaming';
+                document.getElementById('start-stream').classList.add('active');
+                document.getElementById('pause-stream').classList.remove('active');
+                
+                this.streamData();
+            }
+
+            pauseStreaming() {
+                this.isStreaming = false;
+                document.getElementById('stream-status').textContent = 'Paused';
+                document.getElementById('start-stream').classList.remove('active');
+                document.getElementById('pause-stream').classList.add('active');
+            }
+
+            stopStreaming() {
+                this.isStreaming = false;
+                document.getElementById('stream-status').textContent = 'Stopped';
+                document.getElementById('start-stream').classList.remove('active');
+                document.getElementById('pause-stream').classList.remove('active');
+                
+                this.dataBuffer = [];
+                this.updateBufferDisplay();
+            }
+
+            streamData() {
+                if (!this.isStreaming) return;
+
+                // Generate new data point
+                const newData = this.generateDataPoint();
+                this.dataBuffer.push(newData);
+                
+                // Maintain buffer size
+                if (this.dataBuffer.length > this.maxBufferSize) {
+                    this.dataBuffer.shift();
+                }
+
+                // Update all charts
+                this.updateAllCharts(newData);
+                
+                // Update streaming stats
+                this.updateStreamingStats();
+                
+                // Schedule next update
+                setTimeout(() => this.streamData(), this.streamRate);
+            }
+
+            generateDataPoint() {
+                const timestamp = Date.now();
+                return {
+                    timestamp,
+                    value: Math.random() * 100,
+                    x: Math.random() * 1000,
+                    y: Math.random() * 1000,
+                    intensity: Math.random(),
+                    category: ['A', 'B', 'C', 'D'][Math.floor(Math.random() * 4)],
+                    node: Math.floor(Math.random() * 10),
+                    edge: Math.floor(Math.random() * 5)
+                };
+            }
+
+            updateAllCharts(newData) {
+                this.charts.forEach(chart => {
+                    if (chart.updateData) {
+                        chart.updateData(newData);
+                    }
+                });
+            }
+
+            updateStreamingStats() {
+                const now = performance.now();
+                const dataRate = 1000 / this.streamRate;
+                
+                document.getElementById('data-rate').textContent = `${dataRate.toFixed(1)}/s`;
+                document.getElementById('latency').textContent = `${this.streamRate}ms`;
+                document.getElementById('buffer-size').textContent = this.dataBuffer.length;
+                
+                this.updateBufferDisplay();
+            }
+
+            updateBufferDisplay() {
+                // Update buffer visualization if needed
+            }
+
+            resetAll() {
+                this.charts.forEach(chart => {
+                    if (chart.reset) {
+                        chart.reset();
+                    }
+                });
+                
+                this.dataBuffer = [];
+                this.updateStreamingStats();
+            }
+
+            exportData() {
+                const dataStr = JSON.stringify(this.dataBuffer, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `streaming_data_${Date.now()}.json`;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+            }
+
+            toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen();
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+
+            generateData() {
+                // Generate initial dataset
+                const data = [];
+                for (let i = 0; i < 1000; i++) {
+                    data.push(this.generateDataPoint());
+                }
+                
+                this.dataBuffer = data;
+                this.updateStreamingStats();
+                
+                // Update charts with initial data
+                this.charts.forEach(chart => {
+                    if (chart.setData) {
+                        chart.setData(data);
+                    }
+                });
+            }
+
+            simulateStream() {
+                this.startStreaming();
+            }
+
+            loadSampleData() {
+                // Load sample data from embedded source
+                const sampleData = this.createSampleData();
+                this.dataBuffer = sampleData;
+                this.updateStreamingStats();
+                
+                this.charts.forEach(chart => {
+                    if (chart.setData) {
+                        chart.setData(sampleData);
+                    }
+                });
+            }
+
+            createSampleData() {
+                const data = [];
+                const baseTime = Date.now() - 60000; // 1 minute ago
+                
+                for (let i = 0; i < 1000; i++) {
+                    const timestamp = baseTime + i * 100;
+                    data.push({
+                        timestamp,
+                        value: 50 + 30 * Math.sin(i * 0.1) + (Math.random() - 0.5) * 10,
+                        x: i * 2 + Math.random() * 20,
+                        y: 100 + 50 * Math.cos(i * 0.05) + (Math.random() - 0.5) * 15,
+                        intensity: 0.5 + 0.3 * Math.sin(i * 0.02),
+                        category: ['A', 'B', 'C', 'D'][i % 4],
+                        node: i % 10,
+                        edge: i % 5
+                    });
+                }
+                
+                return data;
+            }
+
+            closeModal() {
+                document.getElementById('data-stream-modal').style.display = 'none';
+            }
+
+            startPerformanceMonitoring() {
+                const updateStats = () => {
+                    const now = performance.now();
+                    const deltaTime = now - this.lastFrameTime;
+                    
+                    if (deltaTime > 0) {
+                        this.performanceStats.fps = 1000 / deltaTime;
+                        this.performanceStats.activeCharts = this.charts.length;
+                        this.performanceStats.memoryUsage = this.estimateMemoryUsage();
+                        
+                        this.updatePerformanceDisplay();
+                    }
+                    
+                    this.lastFrameTime = now;
+                    this.frameCount++;
+                    
+                    requestAnimationFrame(updateStats);
+                };
+                
+                updateStats();
+            }
+
+            estimateMemoryUsage() {
+                // Rough estimation of memory usage
+                const baseMemory = this.dataBuffer.length * 64; // bytes per data point
+                const chartMemory = this.charts.length * 1024 * 1024; // 1MB per chart
+                return Math.round((baseMemory + chartMemory) / (1024 * 1024));
+            }
+
+            updatePerformanceDisplay() {
+                document.getElementById('fps').textContent = Math.round(this.performanceStats.fps);
+                document.getElementById('render-time').textContent = `${Math.round(1000 / this.performanceStats.fps)}ms`;
+                document.getElementById('memory-usage').textContent = `${this.performanceStats.memoryUsage}MB`;
+                document.getElementById('active-charts').textContent = this.performanceStats.activeCharts;
+            }
+        }
+
+        // Base Chart Class for Streaming
+        class StreamingBaseChart {
+            constructor(canvas, config) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.config = config;
+                this.data = [];
+                this.isFocused = false;
+                this.filters = {};
+                
+                this.setupCanvas();
+                this.setupEventListeners();
+            }
+
+            setupCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+
+            resizeCanvas() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width * window.devicePixelRatio;
+                this.canvas.height = rect.height * window.devicePixelRatio;
+                this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                
+                this.draw();
+            }
+
+            setupEventListeners() {
+                this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
+                this.canvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
+                this.canvas.addEventListener('wheel', (e) => this.onWheel(e));
+                this.canvas.addEventListener('mouseenter', () => this.isFocused = true);
+                this.canvas.addEventListener('mouseleave', () => this.isFocused = false);
+            }
+
+            setData(data) {
+                this.data = data;
+                this.draw();
+            }
+
+            updateData(newData) {
+                this.data.push(newData);
+                
+                // Keep only recent data for performance
+                if (this.data.length > 1000) {
+                    this.data = this.data.slice(-1000);
+                }
+                
+                this.draw();
+            }
+
+            reset() {
+                this.data = [];
+                this.filters = {};
+                this.draw();
+            }
+
+            onMouseDown(e) {}
+            onMouseMove(e) {}
+            onMouseUp(e) {}
+            onWheel(e) {}
+            draw() {}
+        }
+
+        // Streaming Histogram Chart
+        class StreamingHistogramChart extends StreamingBaseChart {
+            constructor(canvas, config) {
+                super(canvas, config);
+                this.bins = [];
+                this.numBins = 20;
+            }
+
+            updateData(newData) {
+                super.updateData(newData);
+                this.updateBins();
+            }
+
+            updateBins() {
+                if (this.data.length === 0) return;
+                
+                const values = this.data.map(d => d.value).filter(v => !isNaN(v));
+                if (values.length === 0) return;
+                
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                const binSize = (max - min) / this.numBins;
+                
+                this.bins = new Array(this.numBins).fill(0);
+                
+                values.forEach(value => {
+                    const binIndex = Math.min(Math.floor((value - min) / binSize), this.numBins - 1);
+                    if (binIndex >= 0) {
+                        this.bins[binIndex]++;
+                    }
+                });
+            }
+
+            draw() {
+                if (!this.ctx) return;
+                
+                const { width, height } = this.canvas;
+                this.ctx.clearRect(0, 0, width, height);
+                
+                if (this.bins.length === 0) return;
+                
+                const maxCount = Math.max(...this.bins);
+                const barWidth = width / this.bins.length;
+                
+                this.ctx.fillStyle = '#00ff88';
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 1;
+                
+                this.bins.forEach((count, i) => {
+                    const barHeight = (count / maxCount) * height * 0.8;
+                    const x = i * barWidth;
+                    const y = height - barHeight;
+                    
+                    this.ctx.fillRect(x + 1, y, barWidth - 2, barHeight);
+                    this.ctx.strokeRect(x + 1, y, barWidth - 2, barHeight);
+                });
+            }
+        }
+
+        // Streaming Scatter Chart
+        class StreamingScatterChart extends StreamingBaseChart {
+            constructor(canvas, config) {
+                super(canvas, config);
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+            }
+
+            onWheel(e) {
+                e.preventDefault();
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                this.zoom *= zoomFactor;
+                this.zoom = Math.max(0.1, Math.min(10, this.zoom));
+                this.draw();
+            }
+
+            draw() {
+                if (!this.ctx) return;
+                
+                const { width, height } = this.canvas;
+                this.ctx.clearRect(0, 0, width, height);
+                
+                if (this.data.length === 0) return;
+                
+                const values = this.data.filter(d => !isNaN(d.x) && !isNaN(d.y));
+                if (values.length === 0) return;
+                
+                const xValues = values.map(d => d.x);
+                const yValues = values.map(d => d.y);
+                
+                const minX = Math.min(...xValues);
+                const maxX = Math.max(...xValues);
+                const minY = Math.min(...yValues);
+                const maxY = Math.max(...yValues);
+                
+                this.ctx.save();
+                this.ctx.translate(width / 2, height / 2);
+                this.ctx.scale(this.zoom, this.zoom);
+                this.ctx.translate(-width / 2 + this.panX, -height / 2 + this.panY);
+                
+                this.ctx.fillStyle = '#00ff88';
+                this.ctx.globalAlpha = 0.7;
+                
+                values.forEach(point => {
+                    const x = ((point.x - minX) / (maxX - minX)) * width;
+                    const y = ((point.y - minY) / (maxY - minY)) * height;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+                
+                this.ctx.restore();
+            }
+        }
+
+        // Streaming Bar Chart
+        class StreamingBarChart extends StreamingBaseChart {
+            constructor(canvas, config) {
+                super(canvas, config);
+                this.categories = new Map();
+            }
+
+            updateData(newData) {
+                super.updateData(newData);
+                this.updateCategories();
+            }
+
+            updateCategories() {
+                this.categories.clear();
+                
+                this.data.forEach(item => {
+                    if (item.category) {
+                        this.categories.set(item.category, (this.categories.get(item.category) || 0) + 1);
+                    }
+                });
+            }
+
+            draw() {
+                if (!this.ctx) return;
+                
+                const { width, height } = this.canvas;
+                this.ctx.clearRect(0, 0, width, height);
+                
+                if (this.categories.size === 0) return;
+                
+                const maxCount = Math.max(...this.categories.values());
+                const barHeight = height / this.categories.size;
+                
+                this.ctx.fillStyle = '#00ff88';
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 1;
+                this.ctx.font = '12px Arial';
+                this.ctx.fillStyle = '#ffffff';
+                
+                let y = 0;
+                this.categories.forEach((count, category) => {
+                    const barWidth = (count / maxCount) * width * 0.8;
+                    
+                    this.ctx.fillStyle = '#00ff88';
+                    this.ctx.fillRect(0, y, barWidth, barHeight - 2);
+                    this.ctx.strokeRect(0, y, barWidth, barHeight - 2);
+                    
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.fillText(`${category}: ${count}`, 5, y + barHeight / 2 + 4);
+                    
+                    y += barHeight;
+                });
+            }
+        }
+
+        // Streaming Line Chart
+        class StreamingLineChart extends StreamingBaseChart {
+            constructor(canvas, config) {
+                super(canvas, config);
+                this.lineColor = '#00ff88';
+                this.lineWidth = 2;
+            }
+
+            draw() {
+                if (!this.ctx) return;
+                
+                const { width, height } = this.canvas;
+                this.ctx.clearRect(0, 0, width, height);
+                
+                if (this.data.length < 2) return;
+                
+                const values = this.data.filter(d => !isNaN(d.value)).slice(-100);
+                if (values.length < 2) return;
+                
+                const maxValue = Math.max(...values);
+                const minValue = Math.min(...values);
+                const valueRange = maxValue - minValue;
+                
+                this.ctx.strokeStyle = this.lineColor;
+                this.ctx.lineWidth = this.lineWidth;
+                this.ctx.beginPath();
+                
+                values.forEach((point, i) => {
+                    const x = (i / (values.length - 1)) * width;
+                    const y = height - ((point.value - minValue) / valueRange) * height;
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                });
+                
+                this.ctx.stroke();
+            }
+        }
+
+        // Streaming Heatmap Chart
+        class StreamingHeatmapChart extends StreamingBaseChart {
+            constructor(canvas, config) {
+                super(canvas, config);
+                this.gridSize = 20;
+                this.heatmap = new Map();
+            }
+
+            updateData(newData) {
+                super.updateData(newData);
+                this.updateHeatmap();
+            }
+
+            updateHeatmap() {
+                this.heatmap.clear();
+                
+                this.data.forEach(item => {
+                    if (!isNaN(item.x) && !isNaN(item.y) && !isNaN(item.intensity)) {
+                        const gridX = Math.floor((item.x / 1000) * this.gridSize);
+                        const gridY = Math.floor((item.y / 1000) * this.gridSize);
+                        const key = `${gridX},${gridY}`;
+                        
+                        this.heatmap.set(key, (this.heatmap.get(key) || 0) + item.intensity);
+                    }
+                });
+            }
+
+            draw() {
+                if (!this.ctx) return;
+                
+                const { width, height } = this.canvas;
+                this.ctx.clearRect(0, 0, width, height);
+                
+                if (this.heatmap.size === 0) return;
+                
+                const maxIntensity = Math.max(...this.heatmap.values());
+                const cellWidth = width / this.gridSize;
+                const cellHeight = height / this.gridSize;
+                
+                this.heatmap.forEach((intensity, key) => {
+                    const [gridX, gridY] = key.split(',').map(Number);
+                    const x = gridX * cellWidth;
+                    const y = gridY * cellHeight;
+                    
+                    const alpha = intensity / maxIntensity;
+                    this.ctx.fillStyle = `rgba(0, 255, 136, ${alpha})`;
+                    this.ctx.fillRect(x, y, cellWidth, cellHeight);
+                });
+            }
+        }
+
+        // Streaming Gauge Chart
+        class StreamingGaugeChart extends StreamingBaseChart {
+            constructor(canvas, config) {
+                super(canvas, config);
+                this.currentValue = 0;
+                this.targetValue = 100;
+                this.minValue = 0;
+                this.maxValue = 100;
+            }
+
+            updateData(newData) {
+                super.updateData(newData);
+                if (newData.value !== undefined) {
+                    this.currentValue = newData.value;
+                }
+            }
+
+            draw() {
+                if (!this.ctx) return;
+                
+                const { width, height } = this.canvas;
+                this.ctx.clearRect(0, 0, width, height);
+                
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const radius = Math.min(width, height) / 2 - 20;
+                
+                // Draw gauge background
+                this.ctx.strokeStyle = '#333333';
+                this.ctx.lineWidth = 20;
+                this.ctx.beginPath();
+                this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                this.ctx.stroke();
+                
+                // Draw gauge value
+                const percentage = (this.currentValue - this.minValue) / (this.maxValue - this.minValue);
+                const angle = percentage * Math.PI * 2;
+                
+                this.ctx.strokeStyle = '#00ff88';
+                this.ctx.lineWidth = 20;
+                this.ctx.beginPath();
+                this.ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + angle);
+                this.ctx.stroke();
+                
+                // Draw center value
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.font = '24px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(Math.round(this.currentValue), centerX, centerY + 8);
+            }
+        }
+
+        // Streaming Network Chart
+        class StreamingNetworkChart extends StreamingBaseChart {
+            constructor(canvas, config) {
+                super(canvas, config);
+                this.nodes = new Map();
+                this.edges = [];
+            }
+
+            updateData(newData) {
+                super.updateData(newData);
+                this.updateNetwork();
+            }
+
+            updateNetwork() {
+                this.nodes.clear();
+                this.edges = [];
+                
+                this.data.forEach(item => {
+                    if (item.node !== undefined) {
+                        this.nodes.set(item.node, {
+                            x: Math.random() * 400,
+                            y: Math.random() * 300,
+                            connections: 0
+                        });
+                    }
+                    
+                    if (item.edge !== undefined && item.node !== undefined) {
+                        this.edges.push({
+                            from: item.node,
+                            to: item.edge
+                        });
+                    }
+                });
+            }
+
+            draw() {
+                if (!this.ctx) return;
+                
+                const { width, height } = this.canvas;
+                this.ctx.clearRect(0, 0, width, height);
+                
+                // Draw edges
+                this.ctx.strokeStyle = '#444444';
+                this.ctx.lineWidth = 1;
+                
+                this.edges.forEach(edge => {
+                    const fromNode = this.nodes.get(edge.from);
+                    const toNode = this.nodes.get(edge.to);
+                    
+                    if (fromNode && toNode) {
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(fromNode.x, fromNode.y);
+                        this.ctx.lineTo(toNode.x, toNode.y);
+                        this.ctx.stroke();
+                    }
+                });
+                
+                // Draw nodes
+                this.nodes.forEach((node, id) => {
+                    this.ctx.fillStyle = '#00ff88';
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, node.y, 8, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.font = '12px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(id, node.x, node.y + 20);
+                });
+            }
+        }
+
+        // Streaming Surface Chart (2D canvas-based 3D-like)
+        class StreamingSurfaceChart extends StreamingBaseChart {
+            constructor(canvas, config) {
+                super(canvas, config);
+                this.surfaceData = [];
+                this.resolution = 20;
+            }
+
+            updateData(newData) {
+                super.updateData(newData);
+                this.updateSurface();
+            }
+
+            updateSurface() {
+                this.surfaceData = [];
+                
+                for (let x = 0; x < this.resolution; x++) {
+                    for (let y = 0; y < this.resolution; y++) {
+                        const xNorm = x / this.resolution;
+                        const yNorm = y / this.resolution;
+                        
+                        // Create a wave-like surface
+                        const z = Math.sin(xNorm * Math.PI * 4) * Math.cos(yNorm * Math.PI * 4) * 50 + 50;
+                        this.surfaceData.push({ x: xNorm, y: yNorm, z });
+                    }
+                }
+            }
+
+            draw() {
+                if (!this.ctx) return;
+                
+                const { width, height } = this.canvas;
+                this.ctx.clearRect(0, 0, width, height);
+                
+                if (this.surfaceData.length === 0) return;
+                
+                const cellWidth = width / this.resolution;
+                const cellHeight = height / this.resolution;
+                
+                this.surfaceData.forEach(point => {
+                    const x = point.x * width;
+                    const y = point.y * height;
+                    const intensity = point.z / 100;
+                    
+                    this.ctx.fillStyle = `rgba(0, 255, 136, ${intensity})`;
+                    this.ctx.fillRect(x, y, cellWidth, cellHeight);
+                });
+            }
+        }
+
+        // Initialize the engine when the page loads
+        window.addEventListener('load', () => {
+            new RealTimeStreamingEngine().init();
+        });
+    </script>
+</body>
+</html>
