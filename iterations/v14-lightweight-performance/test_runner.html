@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 V14: Interactive Test Runner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            color: #ffffff;
+        }
+
+        .header p {
+            font-size: 16px;
+            color: #cccccc;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        button {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(79, 172, 254, 0.4);
+        }
+
+        button:disabled {
+            background: #666666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin-left: auto;
+            min-width: 200px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+
+        .results-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .results-panel {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .results-panel h3 {
+            color: #4facfe;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .test-item:last-child {
+            border-bottom: none;
+        }
+
+        .test-name {
+            flex: 1;
+        }
+
+        .test-status {
+            margin-left: 10px;
+            font-weight: bold;
+        }
+
+        .test-duration {
+            margin-left: 10px;
+            font-size: 12px;
+            color: #cccccc;
+        }
+
+        .passed {
+            color: #4ade80;
+        }
+
+        .failed {
+            color: #f87171;
+        }
+
+        .running {
+            color: #fbbf24;
+        }
+
+        .summary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .summary h3 {
+            color: #4facfe;
+            margin-bottom: 15px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .summary-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .summary-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-label {
+            font-size: 12px;
+            color: #cccccc;
+        }
+
+        .console-output {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .console-output h3 {
+            color: #4facfe;
+            margin-bottom: 15px;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .console-line {
+            margin: 2px 0;
+            white-space: pre-wrap;
+        }
+
+        .console-error {
+            color: #f87171;
+        }
+
+        .console-success {
+            color: #4ade80;
+        }
+
+        .console-info {
+            color: #60a5fa;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .benchmark-results {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .benchmark-results h3 {
+            color: #4facfe;
+            margin-bottom: 15px;
+        }
+
+        .benchmark-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+
+        @media (max-width: 768px) {
+            .results-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .status {
+                margin-left: 0;
+                margin-top: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Interactive Test Runner</h1>
+            <p>Comprehensive testing suite for V14 Lightweight Performance Demo</p>
+        </div>
+
+        <div class="controls">
+            <button id="run-all-tests">🚀 Run All Tests</button>
+            <button id="run-performance-tests">⚡ Performance Tests</button>
+            <button id="clear-results">🗑️ Clear Results</button>
+            <button id="export-results">💾 Export Results</button>
+            
+            <div class="status">
+                <div class="status-item">
+                    <span>Status:</span>
+                    <span id="test-status">Ready</span>
+                </div>
+                <div class="status-item">
+                    <span>Progress:</span>
+                    <span id="test-progress">0/0</span>
+                </div>
+                <div class="status-item">
+                    <span>Duration:</span>
+                    <span id="test-duration">0ms</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+
+        <div class="summary" id="summary" style="display: none;">
+            <h3>📊 Test Summary</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-value passed" id="passed-count">0</div>
+                    <div class="summary-label">Passed</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value failed" id="failed-count">0</div>
+                    <div class="summary-label">Failed</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="total-count">0</div>
+                    <div class="summary-label">Total</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="success-rate">0%</div>
+                    <div class="summary-label">Success Rate</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="results-container">
+            <div class="results-panel">
+                <h3>🧪 Test Results</h3>
+                <div id="test-results">
+                    <p style="color: #cccccc; text-align: center; padding: 20px;">
+                        Click "Run All Tests" to start testing
+                    </p>
+                </div>
+            </div>
+
+            <div class="results-panel">
+                <h3>📈 Performance Metrics</h3>
+                <div id="performance-metrics">
+                    <p style="color: #cccccc; text-align: center; padding: 20px;">
+                        Performance data will appear here
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="console-output">
+            <h3>🖥️ Console Output</h3>
+            <div id="console-content"></div>
+        </div>
+
+        <div class="benchmark-results" id="benchmark-results" style="display: none;">
+            <h3>🏆 Benchmark Results</h3>
+            <div id="benchmark-content"></div>
+        </div>
+    </div>
+
+    <script src="test_core.js"></script>
+    <script>
+        class TestRunner {
+            constructor() {
+                this.testSuite = new TestSuite();
+                this.isRunning = false;
+                this.startTime = 0;
+                this.consoleOutput = [];
+                
+                this.setupUI();
+                this.interceptConsole();
+            }
+
+            setupUI() {
+                document.getElementById('run-all-tests').addEventListener('click', () => this.runAllTests());
+                document.getElementById('run-performance-tests').addEventListener('click', () => this.runPerformanceTests());
+                document.getElementById('clear-results').addEventListener('click', () => this.clearResults());
+                document.getElementById('export-results').addEventListener('click', () => this.exportResults());
+            }
+
+            interceptConsole() {
+                const originalLog = console.log;
+                const originalWarn = console.warn;
+                const originalError = console.error;
+
+                console.log = (...args) => {
+                    this.addConsoleOutput('info', args.join(' '));
+                    originalLog.apply(console, args);
+                };
+
+                console.warn = (...args) => {
+                    this.addConsoleOutput('warn', args.join(' '));
+                    originalWarn.apply(console, args);
+                };
+
+                console.error = (...args) => {
+                    this.addConsoleOutput('error', args.join(' '));
+                    originalError.apply(console, args);
+                };
+            }
+
+            addConsoleOutput(type, message) {
+                this.consoleOutput.push({ type, message, timestamp: Date.now() });
+                this.updateConsoleDisplay();
+            }
+
+            updateConsoleDisplay() {
+                const consoleContent = document.getElementById('console-content');
+                const lastMessages = this.consoleOutput.slice(-50); // Show last 50 messages
+                
+                consoleContent.innerHTML = lastMessages.map(entry => {
+                    const className = entry.type === 'error' ? 'console-error' : 
+                                    entry.type === 'warn' ? 'console-warn' : 
+                                    entry.type === 'info' ? 'console-info' : '';
+                    return `<div class="console-line ${className}">${entry.message}</div>`;
+                }).join('');
+                
+                consoleContent.scrollTop = consoleContent.scrollHeight;
+            }
+
+            async runAllTests() {
+                if (this.isRunning) return;
+
+                this.isRunning = true;
+                this.startTime = performance.now();
+                
+                this.updateStatus('Running', '0/8', '0ms');
+                this.updateProgress(0);
+                
+                document.getElementById('run-all-tests').disabled = true;
+                document.getElementById('run-performance-tests').disabled = true;
+
+                try {
+                    // Clear previous results
+                    this.clearTestResults();
+                    
+                    // Run tests with progress updates
+                    const results = await this.runTestsWithProgress();
+                    
+                    // Update final results
+                    this.displayResults(results);
+                    this.updateSummary(results);
+                    
+                } catch (error) {
+                    console.error('Test execution failed:', error);
+                } finally {
+                    this.isRunning = false;
+                    document.getElementById('run-all-tests').disabled = false;
+                    document.getElementById('run-performance-tests').disabled = false;
+                    
+                    const duration = performance.now() - this.startTime;
+                    this.updateStatus('Complete', `${this.testSuite.results.total}/${this.testSuite.results.total}`, `${Math.round(duration)}ms`);
+                    this.updateProgress(100);
+                }
+            }
+
+            async runTestsWithProgress() {
+                const tests = this.testSuite.tests;
+                const results = { passed: 0, failed: 0, total: 0, details: [] };
+                
+                for (let i = 0; i < tests.length; i++) {
+                    const test = tests[i];
+                    
+                    // Update progress
+                    const progress = ((i + 1) / tests.length) * 100;
+                    this.updateProgress(progress);
+                    this.updateStatus('Running', `${i + 1}/${tests.length}`, `${Math.round(performance.now() - this.startTime)}ms`);
+                    
+                    // Add test to UI as running
+                    this.addTestResult(test.name, 'running', 0);
+                    
+                    // Run the test
+                    const startTime = performance.now();
+                    let testResult = { name: test.name, passed: false, error: null, duration: 0 };
+                    
+                    try {
+                        await test.testFunction();
+                        testResult.passed = true;
+                        results.passed++;
+                    } catch (error) {
+                        testResult.passed = false;
+                        testResult.error = error.message;
+                        results.failed++;
+                    }
+                    
+                    testResult.duration = performance.now() - startTime;
+                    results.details.push(testResult);
+                    results.total++;
+                    
+                    // Update test result in UI
+                    this.updateTestResult(test.name, testResult.passed ? 'passed' : 'failed', testResult.duration, testResult.error);
+                    
+                    // Small delay for UI updates
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                return results;
+            }
+
+            async runPerformanceTests() {
+                if (this.isRunning) return;
+
+                console.log('🏆 Running performance benchmarks...');
+                
+                const benchmarks = [
+                    { name: 'Data Generation (100K)', test: () => this.benchmarkDataGeneration(100000) },
+                    { name: 'Data Generation (1M)', test: () => this.benchmarkDataGeneration(1000000) },
+                    { name: 'Histogram Calculation', test: () => this.benchmarkHistogram() },
+                    { name: 'Scatter Plot Rendering', test: () => this.benchmarkScatter() },
+                    { name: 'Filter Application', test: () => this.benchmarkFiltering() }
+                ];
+
+                const benchmarkResults = [];
+                
+                for (const benchmark of benchmarks) {
+                    console.log(`Running ${benchmark.name}...`);
+                    const startTime = performance.now();
+                    
+                    try {
+                        await benchmark.test();
+                        const duration = performance.now() - startTime;
+                        benchmarkResults.push({ name: benchmark.name, duration, success: true });
+                        console.log(`✅ ${benchmark.name}: ${duration.toFixed(2)}ms`);
+                    } catch (error) {
+                        const duration = performance.now() - startTime;
+                        benchmarkResults.push({ name: benchmark.name, duration, success: false, error: error.message });
+                        console.log(`❌ ${benchmark.name}: ${error.message}`);
+                    }
+                }
+
+                this.displayBenchmarkResults(benchmarkResults);
+            }
+
+            async benchmarkDataGeneration(size) {
+                const data = {
+                    values: new Float32Array(size),
+                    x: new Float32Array(size),
+                    y: new Float32Array(size)
+                };
+
+                for (let i = 0; i < size; i++) {
+                    data.values[i] = Math.random() * 100;
+                    data.x[i] = Math.random() * 1000;
+                    data.y[i] = Math.random() * 1000;
+                }
+
+                return data;
+            }
+
+            async benchmarkHistogram() {
+                const size = 100000;
+                const values = new Float32Array(size);
+                for (let i = 0; i < size; i++) {
+                    values[i] = Math.random() * 100;
+                }
+
+                const bins = new Array(20).fill(0);
+                const min = 0;
+                const max = 100;
+                const binSize = (max - min) / 20;
+
+                for (let i = 0; i < values.length; i++) {
+                    const binIndex = Math.min(Math.floor((values[i] - min) / binSize), 19);
+                    bins[binIndex]++;
+                }
+
+                return bins;
+            }
+
+            async benchmarkScatter() {
+                const size = 10000;
+                const points = [];
+                
+                for (let i = 0; i < size; i++) {
+                    points.push({
+                        x: Math.random() * 1000,
+                        y: Math.random() * 1000
+                    });
+                }
+
+                // Simulate rendering calculations
+                const minX = Math.min(...points.map(p => p.x));
+                const maxX = Math.max(...points.map(p => p.x));
+                const minY = Math.min(...points.map(p => p.y));
+                const maxY = Math.max(...points.map(p => p.y));
+
+                const normalizedPoints = points.map(p => ({
+                    x: (p.x - minX) / (maxX - minX),
+                    y: (p.y - minY) / (maxY - minY)
+                }));
+
+                return normalizedPoints;
+            }
+
+            async benchmarkFiltering() {
+                const size = 100000;
+                const data = new Float32Array(size);
+                for (let i = 0; i < size; i++) {
+                    data[i] = Math.random() * 100;
+                }
+
+                const filtered = [];
+                for (let i = 0; i < data.length; i++) {
+                    if (data[i] >= 25 && data[i] <= 75) {
+                        filtered.push(i);
+                    }
+                }
+
+                return filtered;
+            }
+
+            displayBenchmarkResults(results) {
+                const benchmarkContent = document.getElementById('benchmark-content');
+                const benchmarkResults = document.getElementById('benchmark-results');
+                
+                benchmarkContent.innerHTML = results.map(result => {
+                    const statusClass = result.success ? 'passed' : 'failed';
+                    const statusText = result.success ? `${result.duration.toFixed(2)}ms` : 'Failed';
+                    
+                    return `
+                        <div class="benchmark-item">
+                            <span>${result.name}</span>
+                            <span class="${statusClass}">${statusText}</span>
+                        </div>
+                    `;
+                }).join('');
+                
+                benchmarkResults.style.display = 'block';
+            }
+
+            clearTestResults() {
+                document.getElementById('test-results').innerHTML = '';
+                document.getElementById('performance-metrics').innerHTML = '';
+                document.getElementById('summary').style.display = 'none';
+                document.getElementById('benchmark-results').style.display = 'none';
+            }
+
+            addTestResult(name, status, duration) {
+                const testResults = document.getElementById('test-results');
+                const testItem = document.createElement('div');
+                testItem.className = 'test-item';
+                testItem.id = `test-${name.replace(/\s+/g, '-')}`;
+                
+                testItem.innerHTML = `
+                    <span class="test-name">${name}</span>
+                    <span class="test-status ${status}">${status === 'running' ? '⏳' : status === 'passed' ? '✅' : '❌'}</span>
+                    <span class="test-duration">${duration > 0 ? `${Math.round(duration)}ms` : ''}</span>
+                `;
+                
+                testResults.appendChild(testItem);
+            }
+
+            updateTestResult(name, status, duration, error) {
+                const testItem = document.getElementById(`test-${name.replace(/\s+/g, '-')}`);
+                if (testItem) {
+                    const statusSpan = testItem.querySelector('.test-status');
+                    const durationSpan = testItem.querySelector('.test-duration');
+                    
+                    statusSpan.className = `test-status ${status}`;
+                    statusSpan.textContent = status === 'passed' ? '✅' : '❌';
+                    durationSpan.textContent = `${Math.round(duration)}ms`;
+                    
+                    if (error) {
+                        testItem.title = error;
+                    }
+                }
+            }
+
+            displayResults(results) {
+                const performanceMetrics = document.getElementById('performance-metrics');
+                
+                const avgDuration = results.details.reduce((sum, test) => sum + test.duration, 0) / results.details.length;
+                const maxDuration = Math.max(...results.details.map(test => test.duration));
+                const minDuration = Math.min(...results.details.map(test => test.duration));
+                
+                performanceMetrics.innerHTML = `
+                    <div class="benchmark-item">
+                        <span>Average Test Duration</span>
+                        <span>${avgDuration.toFixed(2)}ms</span>
+                    </div>
+                    <div class="benchmark-item">
+                        <span>Fastest Test</span>
+                        <span>${minDuration.toFixed(2)}ms</span>
+                    </div>
+                    <div class="benchmark-item">
+                        <span>Slowest Test</span>
+                        <span>${maxDuration.toFixed(2)}ms</span>
+                    </div>
+                    <div class="benchmark-item">
+                        <span>Total Duration</span>
+                        <span>${results.details.reduce((sum, test) => sum + test.duration, 0).toFixed(2)}ms</span>
+                    </div>
+                `;
+            }
+
+            updateSummary(results) {
+                document.getElementById('passed-count').textContent = results.passed;
+                document.getElementById('failed-count').textContent = results.failed;
+                document.getElementById('total-count').textContent = results.total;
+                document.getElementById('success-rate').textContent = `${((results.passed / results.total) * 100).toFixed(1)}%`;
+                
+                document.getElementById('summary').style.display = 'block';
+            }
+
+            updateStatus(status, progress, duration) {
+                document.getElementById('test-status').textContent = status;
+                document.getElementById('test-progress').textContent = progress;
+                document.getElementById('test-duration').textContent = duration;
+            }
+
+            updateProgress(percentage) {
+                document.getElementById('progress-fill').style.width = `${percentage}%`;
+            }
+
+            clearResults() {
+                this.clearTestResults();
+                this.consoleOutput = [];
+                document.getElementById('console-content').innerHTML = '';
+                this.updateStatus('Ready', '0/0', '0ms');
+                this.updateProgress(0);
+            }
+
+            exportResults() {
+                const results = {
+                    timestamp: new Date().toISOString(),
+                    testResults: this.testSuite.results,
+                    consoleOutput: this.consoleOutput,
+                    userAgent: navigator.userAgent,
+                    performance: {
+                        memory: performance.memory ? {
+                            usedJSHeapSize: performance.memory.usedJSHeapSize,
+                            totalJSHeapSize: performance.memory.totalJSHeapSize,
+                            jsHeapSizeLimit: performance.memory.jsHeapSizeLimit
+                        } : null
+                    }
+                };
+
+                const dataStr = JSON.stringify(results, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `test_results_${Date.now()}.json`;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                console.log('📄 Test results exported');
+            }
+        }
+
+        // Initialize test runner when page loads
+        window.addEventListener('load', () => {
+            new TestRunner();
+        });
+    </script>
+</body>
+</html>

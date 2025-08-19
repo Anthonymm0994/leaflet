@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 V14: Lightweight Performance Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: #00d4ff;
+        }
+
+        .performance-metrics {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+        }
+
+        .metric {
+            background: rgba(0, 212, 255, 0.1);
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+
+        .controls {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-size: 14px;
+            color: #cccccc;
+        }
+
+        select, input[type="range"] {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #ffffff;
+            padding: 5px 8px;
+            border-radius: 4px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: linear-gradient(135deg, #0099cc 0%, #007799 100%);
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            background: #666666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+            height: calc(100vh - 140px);
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-container h3 {
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            font-size: 16px;
+            color: #00d4ff;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4444;
+            z-index: 10;
+        }
+
+        .status-indicator.running {
+            background: #44ff44;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .keyboard-shortcuts {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .keyboard-shortcuts h4 {
+            color: #00d4ff;
+            margin-bottom: 5px;
+        }
+
+        .shortcut {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+            gap: 10px;
+        }
+
+        .key {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Lightweight Performance Demo</h1>
+        <div class="performance-metrics">
+            <div class="metric">
+                <span>Updates/sec: </span>
+                <span id="updates-per-sec">0</span>
+            </div>
+            <div class="metric">
+                <span>Render: </span>
+                <span id="render-time">0ms</span>
+            </div>
+            <div class="metric">
+                <span>Memory: </span>
+                <span id="memory-usage">0MB</span>
+            </div>
+            <div class="metric">
+                <span>Data Points: </span>
+                <span id="data-points">0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="data-size">Data Size:</label>
+            <select id="data-size">
+                <option value="100000">100K rows</option>
+                <option value="500000">500K rows</option>
+                <option value="1000000" selected>1M rows</option>
+                <option value="5000000">5M rows</option>
+                <option value="10000000">10M rows</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="update-frequency">Update Rate:</label>
+            <input type="range" id="update-frequency" min="16" max="1000" value="100" step="16">
+            <span id="frequency-display">100ms</span>
+        </div>
+
+        <button id="generate-data">Generate Data</button>
+        <button id="start-updates" disabled>Start Updates</button>
+        <button id="stop-updates" disabled>Stop Updates</button>
+        <button id="export-data" disabled>Export Data</button>
+    </div>
+
+    <div class="dashboard">
+        <div class="chart-container">
+            <h3>Histogram</h3>
+            <div class="status-indicator" id="histogram-status"></div>
+            <canvas id="histogram-chart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3>Scatter Plot</h3>
+            <div class="status-indicator" id="scatter-status"></div>
+            <canvas id="scatter-chart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3>Bar Chart</h3>
+            <div class="status-indicator" id="bar-status"></div>
+            <canvas id="bar-chart"></canvas>
+        </div>
+
+        <div class="chart-container">
+            <h3>Line Chart</h3>
+            <div class="status-indicator" id="line-status"></div>
+            <canvas id="line-chart"></canvas>
+        </div>
+    </div>
+
+    <div class="keyboard-shortcuts">
+        <h4>Keyboard Shortcuts</h4>
+        <div class="shortcut">
+            <span><span class="key">Space</span></span>
+            <span>Toggle Updates</span>
+        </div>
+        <div class="shortcut">
+            <span><span class="key">G</span></span>
+            <span>Generate Data</span>
+        </div>
+        <div class="shortcut">
+            <span><span class="key">E</span></span>
+            <span>Export Data</span>
+        </div>
+        <div class="shortcut">
+            <span><span class="key">R</span></span>
+            <span>Reset All</span>
+        </div>
+    </div>
+
+    <script>
+        // Lightweight Performance Demo Engine
+        class LightweightPerformanceDemo {
+            constructor() {
+                this.data = null;
+                this.isRunning = false;
+                this.updateInterval = null;
+                this.updateFrequency = 100; // ms
+                this.charts = {};
+                this.performanceStats = {
+                    updatesPerSec: 0,
+                    renderTime: 0,
+                    memoryUsage: 0,
+                    lastUpdateTime: 0,
+                    updateCount: 0
+                };
+                
+                this.init();
+            }
+
+            init() {
+                this.setupCharts();
+                this.setupEventListeners();
+                this.startPerformanceMonitoring();
+                
+                console.log('🚀 Lightweight Performance Demo initialized');
+            }
+
+            setupCharts() {
+                // Initialize all chart canvases
+                const chartIds = ['histogram-chart', 'scatter-chart', 'bar-chart', 'line-chart'];
+                
+                chartIds.forEach(id => {
+                    const canvas = document.getElementById(id);
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Set canvas size based on container
+                    const container = canvas.parentElement;
+                    const rect = container.getBoundingClientRect();
+                    canvas.width = (rect.width - 30) * window.devicePixelRatio;
+                    canvas.height = (rect.height - 60) * window.devicePixelRatio;
+                    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                    
+                    this.charts[id] = {
+                        canvas: canvas,
+                        ctx: ctx,
+                        type: id.split('-')[0]
+                    };
+                });
+
+                // Handle window resize
+                window.addEventListener('resize', () => this.resizeCharts());
+            }
+
+            resizeCharts() {
+                Object.values(this.charts).forEach(chart => {
+                    const container = chart.canvas.parentElement;
+                    const rect = container.getBoundingClientRect();
+                    chart.canvas.width = (rect.width - 30) * window.devicePixelRatio;
+                    chart.canvas.height = (rect.height - 60) * window.devicePixelRatio;
+                    chart.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                });
+                
+                if (this.data) {
+                    this.updateAllCharts();
+                }
+            }
+
+            setupEventListeners() {
+                // Control buttons
+                document.getElementById('generate-data').addEventListener('click', () => this.generateData());
+                document.getElementById('start-updates').addEventListener('click', () => this.startUpdates());
+                document.getElementById('stop-updates').addEventListener('click', () => this.stopUpdates());
+                document.getElementById('export-data').addEventListener('click', () => this.exportData());
+
+                // Update frequency slider
+                const frequencySlider = document.getElementById('update-frequency');
+                frequencySlider.addEventListener('input', (e) => {
+                    this.updateFrequency = parseInt(e.target.value);
+                    document.getElementById('frequency-display').textContent = `${this.updateFrequency}ms`;
+                    
+                    if (this.isRunning) {
+                        this.stopUpdates();
+                        this.startUpdates();
+                    }
+                });
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    switch(e.key.toLowerCase()) {
+                        case ' ':
+                            e.preventDefault();
+                            this.isRunning ? this.stopUpdates() : this.startUpdates();
+                            break;
+                        case 'g':
+                            this.generateData();
+                            break;
+                        case 'e':
+                            this.exportData();
+                            break;
+                        case 'r':
+                            this.resetAll();
+                            break;
+                    }
+                });
+            }
+
+            async generateData() {
+                const size = parseInt(document.getElementById('data-size').value);
+                console.log(`🔄 Generating ${size.toLocaleString()} data points...`);
+                
+                const startTime = performance.now();
+                
+                // Use requestIdleCallback for non-blocking generation
+                this.data = await this.generateDataAsync(size);
+                
+                const generationTime = performance.now() - startTime;
+                console.log(`✅ Data generated in ${generationTime.toFixed(2)}ms`);
+                
+                // Update UI
+                document.getElementById('data-points').textContent = size.toLocaleString();
+                document.getElementById('start-updates').disabled = false;
+                document.getElementById('export-data').disabled = false;
+                
+                // Initial chart render
+                this.updateAllCharts();
+            }
+
+            generateDataAsync(size) {
+                return new Promise((resolve) => {
+                    const data = {
+                        values: new Float32Array(size),
+                        x: new Float32Array(size),
+                        y: new Float32Array(size),
+                        categories: new Array(size),
+                        timestamps: new Float32Array(size)
+                    };
+
+                    const categories = ['A', 'B', 'C', 'D', 'E'];
+                    const baseTime = Date.now();
+                    let processed = 0;
+
+                    const processChunk = () => {
+                        const chunkSize = Math.min(10000, size - processed);
+                        
+                        for (let i = 0; i < chunkSize; i++) {
+                            const idx = processed + i;
+                            data.values[idx] = Math.random() * 100;
+                            data.x[idx] = Math.random() * 1000;
+                            data.y[idx] = Math.random() * 1000;
+                            data.categories[idx] = categories[Math.floor(Math.random() * categories.length)];
+                            data.timestamps[idx] = baseTime + idx * 1000;
+                        }
+                        
+                        processed += chunkSize;
+                        
+                        if (processed < size) {
+                            requestIdleCallback(processChunk);
+                        } else {
+                            resolve(data);
+                        }
+                    };
+
+                    requestIdleCallback(processChunk);
+                });
+            }
+
+            startUpdates() {
+                if (!this.data || this.isRunning) return;
+                
+                this.isRunning = true;
+                document.getElementById('start-updates').disabled = true;
+                document.getElementById('stop-updates').disabled = false;
+                
+                // Update status indicators
+                Object.keys(this.charts).forEach(id => {
+                    const statusId = id.replace('-chart', '-status');
+                    document.getElementById(statusId).classList.add('running');
+                });
+                
+                this.updateInterval = setInterval(() => {
+                    this.updateAllCharts();
+                    this.performanceStats.updateCount++;
+                }, this.updateFrequency);
+                
+                console.log('▶️ Updates started');
+            }
+
+            stopUpdates() {
+                if (!this.isRunning) return;
+                
+                this.isRunning = false;
+                document.getElementById('start-updates').disabled = false;
+                document.getElementById('stop-updates').disabled = true;
+                
+                if (this.updateInterval) {
+                    clearInterval(this.updateInterval);
+                    this.updateInterval = null;
+                }
+                
+                // Update status indicators
+                Object.keys(this.charts).forEach(id => {
+                    const statusId = id.replace('-chart', '-status');
+                    document.getElementById(statusId).classList.remove('running');
+                });
+                
+                console.log('⏸️ Updates stopped');
+            }
+
+            updateAllCharts() {
+                if (!this.data) return;
+                
+                const startTime = performance.now();
+                
+                // Sample data for performance (use subset for large datasets)
+                const sampleSize = Math.min(10000, this.data.values.length);
+                const step = Math.max(1, Math.floor(this.data.values.length / sampleSize));
+                
+                // Update each chart
+                this.updateHistogram(step);
+                this.updateScatter(step);
+                this.updateBarChart(step);
+                this.updateLineChart(step);
+                
+                this.performanceStats.renderTime = performance.now() - startTime;
+            }
+
+            updateHistogram(step) {
+                const chart = this.charts['histogram-chart'];
+                const { canvas, ctx } = chart;
+                const width = canvas.width / window.devicePixelRatio;
+                const height = canvas.height / window.devicePixelRatio;
+                
+                ctx.clearRect(0, 0, width, height);
+                
+                // Create histogram bins
+                const numBins = 20;
+                const bins = new Array(numBins).fill(0);
+                const values = [];
+                
+                for (let i = 0; i < this.data.values.length; i += step) {
+                    values.push(this.data.values[i]);
+                }
+                
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                const binSize = (max - min) / numBins;
+                
+                values.forEach(value => {
+                    const binIndex = Math.min(Math.floor((value - min) / binSize), numBins - 1);
+                    bins[binIndex]++;
+                });
+                
+                // Draw histogram
+                const maxCount = Math.max(...bins);
+                const barWidth = width / numBins;
+                
+                ctx.fillStyle = '#00d4ff';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                
+                bins.forEach((count, i) => {
+                    const barHeight = (count / maxCount) * height * 0.8;
+                    const x = i * barWidth;
+                    const y = height - barHeight;
+                    
+                    ctx.fillRect(x + 1, y, barWidth - 2, barHeight);
+                    ctx.strokeRect(x + 1, y, barWidth - 2, barHeight);
+                });
+            }
+
+            updateScatter(step) {
+                const chart = this.charts['scatter-chart'];
+                const { canvas, ctx } = chart;
+                const width = canvas.width / window.devicePixelRatio;
+                const height = canvas.height / window.devicePixelRatio;
+                
+                ctx.clearRect(0, 0, width, height);
+                
+                // Get data ranges
+                const xValues = [];
+                const yValues = [];
+                
+                for (let i = 0; i < this.data.x.length; i += step) {
+                    xValues.push(this.data.x[i]);
+                    yValues.push(this.data.y[i]);
+                }
+                
+                const minX = Math.min(...xValues);
+                const maxX = Math.max(...xValues);
+                const minY = Math.min(...yValues);
+                const maxY = Math.max(...yValues);
+                
+                // Draw scatter points
+                ctx.fillStyle = '#00d4ff';
+                ctx.globalAlpha = 0.6;
+                
+                for (let i = 0; i < xValues.length; i++) {
+                    const x = ((xValues[i] - minX) / (maxX - minX)) * width;
+                    const y = ((yValues[i] - minY) / (maxY - minY)) * height;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.globalAlpha = 1;
+            }
+
+            updateBarChart(step) {
+                const chart = this.charts['bar-chart'];
+                const { canvas, ctx } = chart;
+                const width = canvas.width / window.devicePixelRatio;
+                const height = canvas.height / window.devicePixelRatio;
+                
+                ctx.clearRect(0, 0, width, height);
+                
+                // Count categories
+                const categoryCounts = {};
+                
+                for (let i = 0; i < this.data.categories.length; i += step) {
+                    const category = this.data.categories[i];
+                    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+                }
+                
+                const categories = Object.keys(categoryCounts);
+                const maxCount = Math.max(...Object.values(categoryCounts));
+                const barWidth = width / categories.length;
+                
+                // Draw bars
+                ctx.fillStyle = '#00d4ff';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                
+                categories.forEach((category, i) => {
+                    const count = categoryCounts[category];
+                    const barHeight = (count / maxCount) * height * 0.8;
+                    const x = i * barWidth;
+                    const y = height - barHeight;
+                    
+                    ctx.fillRect(x + 2, y, barWidth - 4, barHeight);
+                    ctx.strokeRect(x + 2, y, barWidth - 4, barHeight);
+                    
+                    // Draw category label
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(category, x + barWidth / 2, height - 5);
+                    ctx.fillStyle = '#00d4ff';
+                });
+            }
+
+            updateLineChart(step) {
+                const chart = this.charts['line-chart'];
+                const { canvas, ctx } = chart;
+                const width = canvas.width / window.devicePixelRatio;
+                const height = canvas.height / window.devicePixelRatio;
+                
+                ctx.clearRect(0, 0, width, height);
+                
+                // Get recent data points for time series
+                const recentPoints = Math.min(100, Math.floor(this.data.values.length / step));
+                const values = [];
+                
+                for (let i = this.data.values.length - recentPoints * step; i < this.data.values.length; i += step) {
+                    if (i >= 0) {
+                        values.push(this.data.values[i]);
+                    }
+                }
+                
+                if (values.length < 2) return;
+                
+                const minValue = Math.min(...values);
+                const maxValue = Math.max(...values);
+                const valueRange = maxValue - minValue || 1;
+                
+                // Draw line
+                ctx.strokeStyle = '#00d4ff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                values.forEach((value, i) => {
+                    const x = (i / (values.length - 1)) * width;
+                    const y = height - ((value - minValue) / valueRange) * height;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                
+                ctx.stroke();
+                
+                // Draw points
+                ctx.fillStyle = '#ffffff';
+                values.forEach((value, i) => {
+                    const x = (i / (values.length - 1)) * width;
+                    const y = height - ((value - minValue) / valueRange) * height;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+
+            exportData() {
+                if (!this.data) return;
+                
+                const exportData = {
+                    metadata: {
+                        size: this.data.values.length,
+                        generated: new Date().toISOString(),
+                        performance: this.performanceStats
+                    },
+                    data: {
+                        values: Array.from(this.data.values.slice(0, 1000)), // Export first 1000 for demo
+                        x: Array.from(this.data.x.slice(0, 1000)),
+                        y: Array.from(this.data.y.slice(0, 1000)),
+                        categories: this.data.categories.slice(0, 1000),
+                        timestamps: Array.from(this.data.timestamps.slice(0, 1000))
+                    }
+                };
+                
+                const dataStr = JSON.stringify(exportData, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `performance_demo_data_${Date.now()}.json`;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                console.log('💾 Data exported');
+            }
+
+            resetAll() {
+                this.stopUpdates();
+                this.data = null;
+                
+                // Clear all charts
+                Object.values(this.charts).forEach(chart => {
+                    const width = chart.canvas.width / window.devicePixelRatio;
+                    const height = chart.canvas.height / window.devicePixelRatio;
+                    chart.ctx.clearRect(0, 0, width, height);
+                });
+                
+                // Reset UI
+                document.getElementById('data-points').textContent = '0';
+                document.getElementById('start-updates').disabled = true;
+                document.getElementById('export-data').disabled = true;
+                
+                // Reset performance stats
+                this.performanceStats = {
+                    updatesPerSec: 0,
+                    renderTime: 0,
+                    memoryUsage: 0,
+                    lastUpdateTime: 0,
+                    updateCount: 0
+                };
+                
+                console.log('🔄 All data and charts reset');
+            }
+
+            startPerformanceMonitoring() {
+                setInterval(() => {
+                    // Calculate updates per second
+                    const now = performance.now();
+                    if (this.performanceStats.lastUpdateTime > 0) {
+                        const timeDiff = now - this.performanceStats.lastUpdateTime;
+                        this.performanceStats.updatesPerSec = this.isRunning ? 
+                            Math.round(1000 / this.updateFrequency) : 0;
+                    }
+                    this.performanceStats.lastUpdateTime = now;
+                    
+                    // Estimate memory usage
+                    if (this.data) {
+                        const bytesPerFloat = 4;
+                        const bytesPerString = 2; // rough estimate
+                        const memoryBytes = 
+                            (this.data.values.length * bytesPerFloat * 3) + // values, x, y, timestamps
+                            (this.data.categories.length * bytesPerString);
+                        this.performanceStats.memoryUsage = Math.round(memoryBytes / (1024 * 1024));
+                    } else {
+                        this.performanceStats.memoryUsage = 0;
+                    }
+                    
+                    // Update display
+                    document.getElementById('updates-per-sec').textContent = this.performanceStats.updatesPerSec;
+                    document.getElementById('render-time').textContent = `${Math.round(this.performanceStats.renderTime)}ms`;
+                    document.getElementById('memory-usage').textContent = `${this.performanceStats.memoryUsage}MB`;
+                }, 1000);
+            }
+        }
+
+        // Initialize the demo when page loads
+        window.addEventListener('load', () => {
+            new LightweightPerformanceDemo();
+        });
+    </script>
+</body>
+</html>
