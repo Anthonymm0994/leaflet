@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Explorer - Modular Version</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #e0e0e0; overflow: hidden; }
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .progress { width: 400px; height: 6px; background: #333; margin-top: 10px; border-radius: 3px; }
+        .progress-bar { height: 100%; background: #4a9eff; transition: width 0.1s; border-radius: 3px; }
+        #main { display: none; height: 100vh; padding: 8px; }
+        .header { background: #1a1a1a; padding: 8px 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .stats { display: flex; gap: 15px; font-size: 13px; }
+        .stats span { display: flex; align-items: center; gap: 5px; }
+        .stats strong { color: #4a9eff; }
+        button { background: #4a9eff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+        button:hover { background: #3a8eef; }
+        button:active { transform: scale(0.95); }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8px; height: calc(100% - 140px); }
+        .panel { background: #1a1a1a; border-radius: 4px; padding: 8px; position: relative; }
+        .panel-title { font-size: 13px; margin-bottom: 4px; font-weight: 500; }
+        canvas { position: absolute; top: 28px; left: 8px; right: 8px; bottom: 20px; cursor: crosshair; }
+        select { background: #333; color: #e0e0e0; border: 1px solid #555; padding: 3px 6px; border-radius: 3px; position: absolute; top: 4px; right: 8px; font-size: 11px; }
+        #tooltip { position: fixed; background: rgba(0,0,0,0.95); padding: 6px 10px; border-radius: 3px; font-size: 11px; pointer-events: none; display: none; z-index: 1000; border: 1px solid #333; }
+        .mini-mode { display: none; }
+        .mini-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+        .mini-panel { background: #1a1a1a; border-radius: 4px; padding: 12px; text-align: center; }
+        .mini-value { font-size: 24px; font-weight: 600; color: #4a9eff; }
+        .mini-label { font-size: 11px; color: #999; margin-top: 4px; }
+        #statsPanel { position: absolute; top: 60px; right: 16px; background: rgba(26,26,26,0.95); border: 1px solid #333; border-radius: 4px; padding: 12px; font-size: 12px; display: none; z-index: 100; }
+        #statsPanel div { margin-bottom: 4px; }
+        #statsPanel strong { color: #4a9eff; margin-left: 4px; }
+        .range-display { 
+            background: #1a1a1a; 
+            padding: 12px 16px; 
+            border-radius: 4px; 
+            margin-bottom: 8px;
+            display: flex; 
+            gap: 24px; 
+            flex-wrap: wrap;
+        }
+        .mini-mode .range-display { display: none; }
+        .range-item { 
+            display: flex; 
+            flex-direction: column; 
+            min-width: 120px;
+        }
+        .range-label { 
+            font-size: 11px; 
+            color: #888; 
+            margin-bottom: 2px; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .range-value { 
+            font-size: 13px; 
+            color: #4a9eff; 
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div>Generating <strong>10,000,000</strong> rows...</div>
+        <div class="progress"><div class="progress-bar" id="progress"></div></div>
+        <div id="loadingStatus" style="margin-top: 8px; font-size: 12px; color: #999;"></div>
+    </div>
+    
+    <div id="main">
+        <div class="header">
+            <h3>Data Explorer - Modular Version</h3>
+            <div class="stats">
+                <span>Total: <strong>10,000,000</strong></span>
+                <span>Filtered: <strong id="filteredCount">10,000,000</strong></span>
+                <span>Selected: <strong id="percentFiltered">100%</strong></span>
+                <span>cat_2=true: <strong id="cat2True">50%</strong></span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="explorer.toggleStats()">📊 Stats</button>
+                <button id="miniModeBtn" onclick="explorer.toggleMiniMode()">📱 Mini</button>
+                <button onclick="explorer.resetAll()">🔄 Reset</button>
+                <button onclick="explorer.exportCSV()">💾 CSV</button>
+                <button onclick="explorer.saveSnapshot()">📷 Snapshot</button>
+            </div>
+        </div>
+        
+        <div class="range-display">
+            <div class="range-item">
+                <span class="range-label">Time:</span>
+                <span class="range-value" id="timeRange">00:00 - 23:59</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Strength:</span>
+                <span class="range-value" id="strengthRange">0.00 - 100.00</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Width:</span>
+                <span class="range-value" id="widthRange">0.10 - 100.00</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Height:</span>
+                <span class="range-value" id="heightRange">0.10 - 60.00</span>
+            </div>
+            <div class="range-item">
+                <span class="range-label">Angle:</span>
+                <span class="range-value" id="angleRange">0.0° - 359.9°</span>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="panel">
+                <div class="panel-title">Time Distribution (24h)</div>
+                <canvas id="timeCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Strength Distribution</div>
+                <canvas id="strengthCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Width Distribution</div>
+                <canvas id="widthCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Height Distribution</div>
+                <canvas id="heightCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Angle Distribution</div>
+                <canvas id="angleCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Category Distribution</div>
+                <canvas id="categoryCanvas"></canvas>
+            </div>
+        </div>
+        
+        <div class="mini-mode">
+            <div class="mini-grid">
+                <div class="mini-panel">
+                    <div class="mini-value" id="miniFiltered">10M</div>
+                    <div class="mini-label">Filtered</div>
+                </div>
+                <div class="mini-panel">
+                    <div class="mini-value" id="miniPercent">100%</div>
+                    <div class="mini-label">of Total</div>
+                </div>
+                <div class="mini-panel">
+                    <div class="mini-value" id="miniAvgStrength">50</div>
+                    <div class="mini-label">Avg Strength</div>
+                </div>
+                <div class="mini-panel">
+                    <div class="mini-value" id="miniAvgWidth">50</div>
+                    <div class="mini-label">Avg Width</div>
+                </div>
+                <div class="mini-panel">
+                    <div class="mini-value" id="miniAvgHeight">30</div>
+                    <div class="mini-label">Avg Height</div>
+                </div>
+                <div class="mini-panel">
+                    <div class="mini-value" id="miniCat2">50%</div>
+                    <div class="mini-label">Cat2 True</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="tooltip"></div>
+    <div id="statsPanel"></div>
+    
+    <!-- Load modules -->
+    <script src="modules/DataManager.js"></script>
+    <script src="modules/FilterManager.js"></script>
+    <script src="modules/ChartManager.js"></script>
+    <script src="modules/DataExplorer.js"></script>
+    
+    <script>
+        // Initialize the application
+        let explorer;
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            explorer = new DataExplorer();
+            await explorer.init();
+        });
+        
+        // Global functions for button clicks
+        window.toggleStats = () => explorer.toggleStats();
+        window.toggleMiniMode = () => explorer.toggleMiniMode();
+        window.resetAll = () => explorer.resetAll();
+        window.exportCSV = () => explorer.exportCSV();
+        window.saveSnapshot = () => explorer.saveSnapshot();
+    </script>
+</body>
+</html>

@@ -358,13 +358,879 @@ class DataExplorerConfig:
     <div id="tooltip"></div>
     <div id="statsPanel"></div>
     
-         <!-- Core Modules -->
-     <script src="../modules/DataManager.js"></script>
-     <script src="../modules/ChartManager.js"></script>
-     <script src="../modules/FilterManager.js"></script>
-     <script src="../modules/DataExplorer.js"></script>
-    
     <script>
+        // ============================================================================
+        // DATA EXPLORER SYSTEM - EMBEDDED VERSION
+        // ============================================================================
+        
+        // Configuration object - will be populated by Python script
+        window.DataExplorerConfig = {
+            title: "Generic Data Explorer",
+            columns: [],
+            data: [],
+            columnTypes: {},
+            chartTypes: [],
+            miniMetrics: []
+        };
+        
+        // ============================================================================
+        // CORE DATA STRUCTURES
+        // ============================================================================
+        
+        let data = {};
+        let filteredIndices = null;
+        let currentRows = 0;
+        let binCache = {};
+        let charts = {};
+        let filters = {};
+        let isMiniMode = false;
+        
+        // ============================================================================
+        // UTILITY FUNCTIONS
+        // ============================================================================
+        
+        function formatCount(count) {
+            if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
+            if (count >= 1000) return (count / 1000).toFixed(1) + 'K';
+            return count.toString();
+        }
+        
+        function formatValue(value, type) {
+            if (type === 'time') {
+                const hours = Math.floor(value / 3600);
+                const minutes = Math.floor((value % 3600) / 60);
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            }
+            if (type === 'number' || type === 'integer') {
+                return value.toLocaleString();
+            }
+            return value.toString();
+        }
+        
+        // ============================================================================
+        // DATA MANAGEMENT
+        // ============================================================================
+        
+        class DataManager {
+            static init(config) {
+                DataExplorerConfig = config;
+                document.getElementById('title').textContent = config.title;
+                
+                // Convert data to TypedArrays for performance
+                data = {};
+                currentRows = config.data.length;
+                
+                for (const col of config.columns) {
+                    const colType = config.columnTypes[col];
+                    const values = config.data.map(row => row[col]);
+                    
+                    if (colType === 'integer') {
+                        data[col] = new Int32Array(values);
+                    } else if (colType === 'number') {
+                        data[col] = new Float32Array(values);
+                    } else if (colType === 'time') {
+                        data[col] = new Float32Array(values);
+                    } else {
+                        data[col] = values; // Keep as array for strings
+                    }
+                }
+                
+                // Initialize filtered indices
+                filteredIndices = new Uint8Array(currentRows);
+                filteredIndices.fill(1);
+                
+                // Initialize filters
+                filters = {};
+                for (const col of config.columns) {
+                    filters[col] = null;
+                }
+                
+                // Pre-bin data for charts
+                this.prebinData();
+                
+                // Update UI
+                DataExplorer.updateStats();
+                DataExplorer.updateRanges();
+                DataExplorer.createChartGrid();
+                DataExplorer.createMiniGrid();
+                
+                // Hide loading, show main
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main').style.display = 'block';
+            }
+            
+            static prebinData() {
+                binCache = {};
+                
+                for (const col of config.columns) {
+                    const colType = config.columnTypes[col];
+                    const values = data[col];
+                    
+                    if (colType === 'integer' || colType === 'number') {
+                        const min = Math.min(...values);
+                        const max = Math.max(...values);
+                        const numBins = 50;
+                        const binSize = (max - min) / numBins;
+                        
+                        const bins = Array(numBins).fill().map(() => []);
+                        for (let i = 0; i < values.length; i++) {
+                            const binIndex = Math.min(Math.floor((values[i] - min) / binSize), numBins - 1);
+                            bins[binIndex].push(i);
+                        }
+                        
+                        binCache[col] = {
+                            bins,
+                            min,
+                            max,
+                            binSize,
+                            numBins,
+                            maxCount: Math.max(...bins.map(bin => bin.length))
+                        };
+                    } else if (colType === 'time') {
+                        const min = Math.min(...values);
+                        const max = Math.max(...values);
+                        const numBins = 24; // 24 hour bins
+                        const binSize = (max - min) / numBins;
+                        
+                        const bins = Array(numBins).fill().map(() => []);
+                        for (let i = 0; i < values.length; i++) {
+                            const binIndex = Math.min(Math.floor((values[i] - min) / binSize), numBins - 1);
+                            bins[binIndex].push(i);
+                        }
+                        
+                        binCache[col] = {
+                            bins,
+                            min,
+                            max,
+                            binSize,
+                            numBins,
+                            maxCount: Math.max(...bins.map(bin => bin.length))
+                        };
+                    } else if (colType === 'string') {
+                        // For categorical data, count unique values
+                        const uniqueValues = [...new Set(values)];
+                        if (uniqueValues.length <= 20) {
+                            const counts = {};
+                            const filteredCounts = {};
+                            
+                            for (const val of uniqueValues) {
+                                counts[val] = values.filter(v => v === val).length;
+                                filteredCounts[val] = 0;
+                            }
+                            
+                            binCache[col] = {
+                                uniqueValues,
+                                counts,
+                                filteredCounts,
+                                maxCount: Math.max(...Object.values(counts))
+                            };
+                        }
+                    }
+                }
+            }
+            
+            static getFilteredData(column) {
+                if (!filteredIndices) return [];
+                return data[column].filter((_, i) => filteredIndices[i]);
+            }
+            
+            static updateFilteredIndices(newIndices) {
+                filteredIndices = newIndices;
+                DataExplorer.updateStats();
+                DataExplorer.updateRanges();
+                DataExplorer.updateAllCharts();
+            }
+        }
+        
+        // ============================================================================
+        // FILTER MANAGEMENT
+        // ============================================================================
+        
+        class FilterManager {
+            static applyFilters() {
+                if (!filteredIndices) return;
+                
+                const newIndices = new Uint8Array(currentRows);
+                newIndices.fill(1);
+                
+                // Apply each filter
+                for (const [column, filter] of Object.entries(filters)) {
+                    if (!filter) continue;
+                    
+                    if (Array.isArray(filter)) {
+                        // Range filter [min, max]
+                        const [min, max] = filter;
+                        for (let i = 0; i < currentRows; i++) {
+                            if (newIndices[i] && (data[column][i] < min || data[column][i] > max)) {
+                                newIndices[i] = 0;
+                            }
+                        }
+                    } else if (filter instanceof Set) {
+                        // Categorical filter
+                        for (let i = 0; i < currentRows; i++) {
+                            if (newIndices[i] && !filter.has(data[column][i])) {
+                                newIndices[i] = 0;
+                            }
+                        }
+                    }
+                }
+                
+                DataManager.updateFilteredIndices(newIndices);
+            }
+            
+            static setFilter(column, filterValue) {
+                filters[column] = filterValue;
+                this.applyFilters();
+            }
+            
+            static clearFilter(column) {
+                filters[column] = null;
+                this.applyFilters();
+            }
+            
+            static clearAllFilters() {
+                for (const col of Object.keys(filters)) {
+                    filters[col] = null;
+                }
+                filteredIndices.fill(1);
+                DataExplorer.updateStats();
+                DataExplorer.updateRanges();
+                DataExplorer.updateAllCharts();
+            }
+        }
+        
+        // ============================================================================
+        // CHART SYSTEM
+        // ============================================================================
+        
+        class Chart {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 0;
+                this.height = 0;
+                this.resize();
+                
+                // Bind events
+                this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
+                this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
+                this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
+                this.canvas.addEventListener('click', this.onClick.bind(this));
+                window.addEventListener('resize', this.resize.bind(this));
+            }
+            
+            resize() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                this.canvas.width = (rect.width - 16) * dpr;
+                this.canvas.height = (rect.height - 36) * dpr;
+                this.canvas.style.width = (rect.width - 16) + 'px';
+                this.canvas.style.height = (rect.height - 36) + 'px';
+                this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                this.width = rect.width - 16;
+                this.height = rect.height - 36;
+                this.draw();
+            }
+            
+            clear() {
+                this.ctx.fillStyle = '#1a1a1a';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+            }
+            
+            getMousePos(e) {
+                const r = this.canvas.getBoundingClientRect();
+                return {
+                    x: (e.clientX - r.left) * (this.width / r.width),
+                    y: (e.clientY - r.top) * (this.height / r.height)
+                };
+            }
+            
+            onMouseDown(e) {}
+            onMouseMove(e) {}
+            onMouseUp(e) {}
+            onClick(e) {}
+            draw() {}
+            
+            destroy() {
+                window.removeEventListener('resize', this.resize);
+                this.canvas.replaceWith(this.canvas.cloneNode(true));
+            }
+        }
+        
+        class HistogramChart extends Chart {
+            constructor(canvasId, column) {
+                super(canvasId);
+                this.column = column;
+                this.margin = { top: 10, right: 10, bottom: 40, left: 50 };
+                this.isInteracting = false;
+                this.isDragging = false;
+                this.dragStart = 0;
+                this.selection = null;
+            }
+            
+            draw() {
+                this.clear();
+                if (!binCache[this.column]) return;
+                
+                const binData = binCache[this.column];
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                const barWidth = width / binData.bins.length;
+                
+                // Calculate counts
+                const counts = new Float32Array(binData.bins.length);
+                const filteredCounts = new Float32Array(binData.bins.length);
+                
+                for (let i = 0; i < binData.bins.length; i++) {
+                    const bin = binData.bins[i];
+                    counts[i] = bin.length;
+                    
+                    if (bin.length > 1000) {
+                        // Sample for performance
+                        let sampled = 0;
+                        const step = Math.max(1, Math.floor(bin.length / 1000));
+                        for (let j = 0; j < bin.length && sampled < 1000; j += step) {
+                            if (filteredIndices[bin[j]]) sampled++;
+                        }
+                        filteredCounts[i] = (sampled / Math.min(1000, bin.length)) * bin.length;
+                    } else {
+                        filteredCounts[i] = bin.filter(idx => filteredIndices[idx]).length;
+                    }
+                }
+                
+                const maxCount = binData.maxCount || Math.max(...counts);
+                
+                this.ctx.save();
+                this.ctx.translate(this.margin.left, this.margin.top);
+                
+                // Draw bars
+                for (let i = 0; i < binData.bins.length; i++) {
+                    const x = i * barWidth;
+                    const h = (counts[i] / maxCount) * height;
+                    const fh = (filteredCounts[i] / maxCount) * height;
+                    
+                    // Background bar
+                    this.ctx.fillStyle = '#2a2a2a';
+                    this.ctx.fillRect(x, height - h, barWidth - 1, h);
+                    
+                    // Filtered bar
+                    this.ctx.fillStyle = '#4a9eff';
+                    this.ctx.fillRect(x, height - fh, barWidth - 1, fh);
+                }
+                
+                // Selection overlay
+                if (this.selection) {
+                    this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                    this.ctx.strokeStyle = '#feca57';
+                    this.ctx.lineWidth = 2;
+                    const x1 = this.selection[0] * barWidth;
+                    const x2 = (this.selection[1] + 1) * barWidth;
+                    this.ctx.fillRect(x1, 0, x2 - x1, height);
+                    this.ctx.strokeRect(x1, 0, x2 - x1, height);
+                }
+                
+                // Axes
+                this.ctx.strokeStyle = '#444';
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, height);
+                this.ctx.lineTo(width, height);
+                this.ctx.moveTo(0, 0);
+                this.ctx.lineTo(0, height);
+                this.ctx.stroke();
+                
+                // Labels
+                this.ctx.fillStyle = '#888';
+                this.ctx.font = '10px -apple-system, sans-serif';
+                this.ctx.textAlign = 'center';
+                
+                const stepL = Math.max(1, Math.floor(binData.bins.length / 10));
+                for (let i = 0; i < binData.bins.length; i += stepL) {
+                    const x = i * barWidth;
+                    const val = binData.min + i * binData.binSize;
+                    this.ctx.fillText(formatValue(val, DataExplorerConfig.columnTypes[this.column]), x, height + 15);
+                }
+                this.ctx.fillText(formatValue(binData.max, DataExplorerConfig.columnTypes[this.column]), binData.bins.length * barWidth, height + 15);
+                
+                this.ctx.restore();
+            }
+            
+            onMouseDown(e) {
+                const p = this.getMousePos(e);
+                if (!this.isInChartArea(p)) return;
+                
+                const x = p.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                const bin = Math.floor(x / (width / binCache[this.column].bins.length));
+                
+                if (bin >= 0 && bin < binCache[this.column].bins.length) {
+                    this.isDragging = true;
+                    this.isInteracting = true;
+                    this.dragStart = bin;
+                }
+            }
+            
+            onMouseMove(e) {
+                if (!this.isDragging) return;
+                
+                const p = this.getMousePos(e);
+                const x = p.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                
+                if (x >= 0 && x <= width) {
+                    const bin = Math.floor(x / (width / binCache[this.column].bins.length));
+                    if (bin >= 0 && bin < binCache[this.column].bins.length) {
+                        this.selection = [Math.min(this.dragStart, bin), Math.max(this.dragStart, bin)];
+                        this.draw();
+                    }
+                }
+            }
+            
+            onMouseUp() {
+                if (this.isDragging && this.selection) {
+                    const binData = binCache[this.column];
+                    const min = binData.min + this.selection[0] * binData.binSize;
+                    const max = binData.min + (this.selection[1] + 1) * binData.binSize;
+                    
+                    FilterManager.setFilter(this.column, [min, max]);
+                }
+                
+                this.isDragging = false;
+                setTimeout(() => { this.isInteracting = false; }, 100);
+            }
+            
+            onClick(e) {
+                if (!this.isInteracting) {
+                    const p = this.getMousePos(e);
+                    if (this.isInChartArea(p)) {
+                        this.selection = null;
+                        FilterManager.clearFilter(this.column);
+                        this.draw();
+                    }
+                }
+            }
+            
+            isInChartArea(p) {
+                return p.x >= this.margin.left && p.x <= this.width - this.margin.right &&
+                       p.y >= this.margin.top && p.y <= this.height - this.margin.bottom;
+            }
+        }
+        
+        class CategoricalChart extends Chart {
+            constructor(canvasId, column) {
+                super(canvasId);
+                this.column = column;
+                this.margin = { top: 20, right: 10, bottom: 40, left: 60 };
+                this.selected = new Set();
+            }
+            
+            draw() {
+                this.clear();
+                if (!binCache[this.column]) return;
+                
+                const binData = binCache[this.column];
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                
+                const uniqueValues = binData.uniqueValues;
+                const barWidth = width / uniqueValues.length;
+                const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3'];
+                
+                this.ctx.save();
+                this.ctx.translate(this.margin.left, this.margin.top);
+                
+                // Draw bars
+                for (let i = 0; i < uniqueValues.length; i++) {
+                    const x = i * barWidth;
+                    const value = uniqueValues[i];
+                    const count = binData.counts[value];
+                    const filteredCount = binData.filteredCounts[value] || 0;
+                    
+                    const h = (count / binData.maxCount) * height;
+                    const fh = (filteredCount / binData.maxCount) * height;
+                    
+                    // Background bar
+                    this.ctx.fillStyle = '#2a2a2a';
+                    this.ctx.fillRect(x, height - h, barWidth - 1, h);
+                    
+                    // Filtered bar
+                    const isSelected = this.selected.size === 0 || this.selected.has(value);
+                    this.ctx.fillStyle = isSelected ? colors[i % colors.length] : '#444';
+                    this.ctx.fillRect(x, height - fh, barWidth - 1, fh);
+                    
+                    // Selection border
+                    if (this.selected.has(value)) {
+                        this.ctx.strokeStyle = '#feca57';
+                        this.ctx.lineWidth = 2;
+                        this.ctx.strokeRect(x - 1, height - h - 1, barWidth + 2, h + 2);
+                    }
+                    
+                    // Label
+                    this.ctx.fillStyle = '#888';
+                    this.ctx.font = '10px -apple-system, sans-serif';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(value.toString(), x + barWidth / 2, height + 20);
+                }
+                
+                this.ctx.restore();
+            }
+            
+            onMouseDown(e) {
+                const p = this.getMousePos(e);
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                
+                const x = p.x - this.margin.left;
+                const y = p.y - this.margin.top;
+                
+                if (x >= 0 && x <= width && y >= 0 && y <= height) {
+                    const barWidth = width / binCache[this.column].uniqueValues.length;
+                    const barIndex = Math.floor(x / barWidth);
+                    
+                    if (barIndex >= 0 && barIndex < binCache[this.column].uniqueValues.length) {
+                        const value = binCache[this.column].uniqueValues[barIndex];
+                        
+                        if (this.selected.has(value)) {
+                            this.selected.delete(value);
+                        } else {
+                            this.selected.add(value);
+                        }
+                        
+                        // Update filter
+                        if (this.selected.size > 0 && this.selected.size < binCache[this.column].uniqueValues.length) {
+                            FilterManager.setFilter(this.column, this.selected);
+                        } else {
+                            FilterManager.clearFilter(this.column);
+                        }
+                        
+                        this.draw();
+                    }
+                }
+            }
+        }
+        
+        class TimeChart extends HistogramChart {
+            constructor(canvasId, column) {
+                super(canvasId, column);
+            }
+            
+            // Inherits all functionality from HistogramChart
+        }
+        
+        // ============================================================================
+        // MAIN DATA EXPLORER CLASS
+        // ============================================================================
+        
+        class DataExplorer {
+            static init() {
+                if (window.DataExplorerConfig) {
+                    DataManager.init(window.DataExplorerConfig);
+                } else {
+                    // Default configuration for testing
+                    this.createDefaultConfig();
+                }
+            }
+            
+            static createDefaultConfig() {
+                // Create sample data for testing
+                const sampleData = [];
+                for (let i = 0; i < 1000; i++) {
+                    sampleData.push({
+                        id: i,
+                        age: Math.floor(Math.random() * 50) + 20,
+                        salary: Math.floor(Math.random() * 80000) + 30000,
+                        department: ['Engineering', 'Sales', 'Marketing', 'HR'][Math.floor(Math.random() * 4)],
+                        experience: Math.floor(Math.random() * 20) + 1
+                    });
+                }
+                
+                const config = {
+                    title: "Sample Data Explorer",
+                    columns: ["id", "age", "salary", "department", "experience"],
+                    data: sampleData,
+                    columnTypes: {
+                        "id": "integer",
+                        "age": "integer",
+                        "salary": "integer",
+                        "department": "string",
+                        "experience": "integer"
+                    },
+                    chartTypes: [
+                        { type: "histogram", column: "age", title: "Age Distribution" },
+                        { type: "histogram", column: "salary", title: "Salary Distribution" },
+                        { type: "categorical", column: "department", title: "Department Breakdown" },
+                        { type: "histogram", column: "experience", title: "Experience Distribution" }
+                    ],
+                    miniMetrics: [
+                        { id: "filtered", label: "Filtered Rows" },
+                        { id: "percent", label: "of Total" },
+                        { id: "avg_age", label: "Avg Age" },
+                        { id: "avg_salary", label: "Avg Salary" }
+                    ]
+                };
+                
+                DataManager.init(config);
+            }
+            
+            static createChartGrid() {
+                const grid = document.getElementById('chartGrid');
+                grid.innerHTML = '';
+                
+                for (const chartConfig of DataExplorerConfig.chartTypes) {
+                    const panel = document.createElement('div');
+                    panel.className = 'panel';
+                    
+                    const title = document.createElement('div');
+                    title.className = 'panel-title';
+                    title.textContent = chartConfig.title;
+                    panel.appendChild(title);
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.id = `canvas_${chartConfig.column}`;
+                    panel.appendChild(canvas);
+                    
+                    grid.appendChild(panel);
+                    
+                    // Create chart instance
+                    let chart;
+                    if (chartConfig.type === 'histogram') {
+                        chart = new HistogramChart(`canvas_${chartConfig.column}`, chartConfig.column);
+                    } else if (chartConfig.type === 'categorical') {
+                        chart = new CategoricalChart(`canvas_${chartConfig.column}`, chartConfig.column);
+                    } else if (chartConfig.type === 'time') {
+                        chart = new TimeChart(`canvas_${chartConfig.column}`, chartConfig.column);
+                    }
+                    
+                    if (chart) {
+                        charts[chartConfig.column] = chart;
+                    }
+                }
+            }
+            
+            static createMiniGrid() {
+                const miniGrid = document.getElementById('miniGrid');
+                miniGrid.innerHTML = '';
+                
+                for (const metric of DataExplorerConfig.miniMetrics) {
+                    const panel = document.createElement('div');
+                    panel.className = 'mini-panel';
+                    
+                    const value = document.createElement('div');
+                    value.className = 'mini-value';
+                    value.id = `mini_${metric.id}`;
+                    value.textContent = '0';
+                    panel.appendChild(value);
+                    
+                    const label = document.createElement('div');
+                    label.className = 'mini-label';
+                    label.textContent = metric.label;
+                    panel.appendChild(label);
+                    
+                    miniGrid.appendChild(panel);
+                }
+            }
+            
+            static updateStats() {
+                if (!filteredIndices) return;
+                
+                const totalCount = currentRows;
+                const filteredCount = filteredIndices.reduce((sum, val) => sum + val, 0);
+                const percent = totalCount > 0 ? ((filteredCount / totalCount) * 100).toFixed(1) : 0;
+                
+                document.getElementById('totalCount').textContent = formatCount(totalCount);
+                document.getElementById('filteredCount').textContent = formatCount(filteredCount);
+                document.getElementById('percentFiltered').textContent = percent + '%';
+                
+                // Update mini metrics
+                this.updateMiniMetrics();
+            }
+            
+            static updateMiniMetrics() {
+                if (!filteredIndices) return;
+                
+                const filteredCount = filteredIndices.reduce((sum, val) => sum + val, 0);
+                const totalCount = currentRows;
+                
+                // Update filtered count
+                const filteredElement = document.getElementById('mini_filtered');
+                if (filteredElement) {
+                    filteredElement.textContent = formatCount(filteredCount);
+                }
+                
+                // Update percentage
+                const percentElement = document.getElementById('mini_percent');
+                if (percentElement) {
+                    const percent = totalCount > 0 ? ((filteredCount / totalCount) * 100).toFixed(1) : 0;
+                    percentElement.textContent = percent + '%';
+                }
+                
+                // Update averages
+                for (const metric of DataExplorerConfig.miniMetrics) {
+                    if (metric.id.startsWith('avg_')) {
+                        const column = metric.id.substring(4);
+                        if (data[column] && DataExplorerConfig.columnTypes[column] === 'number' || DataExplorerConfig.columnTypes[column] === 'integer') {
+                            const filteredData = data[column].filter((_, i) => filteredIndices[i]);
+                            if (filteredData.length > 0) {
+                                const avg = filteredData.reduce((sum, val) => sum + val, 0) / filteredData.length;
+                                const element = document.getElementById(`mini_${metric.id}`);
+                                if (element) {
+                                    element.textContent = formatValue(avg, DataExplorerConfig.columnTypes[column]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            static updateRanges() {
+                if (!filteredIndices) return;
+                
+                const rangeDisplay = document.getElementById('rangeDisplay');
+                rangeDisplay.innerHTML = '';
+                
+                for (const col of DataExplorerConfig.columns) {
+                    const colType = DataExplorerConfig.columnTypes[col];
+                    if (colType === 'number' || colType === 'integer') {
+                        const filteredData = data[col].filter((_, i) => filteredIndices[i]);
+                        if (filteredData.length > 0) {
+                            const min = Math.min(...filteredData);
+                            const max = Math.max(...filteredData);
+                            const avg = filteredData.reduce((sum, val) => sum + val, 0) / filteredData.length;
+                            
+                            const rangeItem = document.createElement('div');
+                            rangeItem.className = 'range-item';
+                            
+                            const label = document.createElement('div');
+                            label.className = 'range-label';
+                            label.textContent = col;
+                            rangeItem.appendChild(label);
+                            
+                            const value = document.createElement('div');
+                            value.className = 'range-value';
+                            value.textContent = `${formatValue(min, colType)} - ${formatValue(max, colType)} (avg: ${formatValue(avg, colType)})`;
+                            rangeItem.appendChild(value);
+                            
+                            rangeDisplay.appendChild(rangeItem);
+                        }
+                    }
+                }
+            }
+            
+            static updateAllCharts() {
+                for (const chart of Object.values(charts)) {
+                    chart.draw();
+                }
+            }
+            
+            static toggleStats() {
+                const panel = document.getElementById('statsPanel');
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                
+                if (panel.style.display === 'block') {
+                    this.updateStatsPanel();
+                }
+            }
+            
+            static updateStatsPanel() {
+                const panel = document.getElementById('statsPanel');
+                panel.innerHTML = '';
+                
+                if (!filteredIndices) return;
+                
+                const totalCount = currentRows;
+                const filteredCount = filteredIndices.reduce((sum, val) => sum + val, 0);
+                
+                const stats = [
+                    { label: 'Total Rows', value: formatCount(totalCount) },
+                    { label: 'Filtered Rows', value: formatCount(filteredCount) },
+                    { label: 'Filtered Percentage', value: ((filteredCount / totalCount) * 100).toFixed(1) + '%' }
+                ];
+                
+                for (const stat of stats) {
+                    const div = document.createElement('div');
+                    div.innerHTML = `${stat.label}: <strong>${stat.value}</strong>`;
+                    div.style.marginBottom = '4px';
+                    panel.appendChild(div);
+                }
+            }
+            
+            static toggleMiniMode() {
+                isMiniMode = !isMiniMode;
+                const mainGrid = document.getElementById('chartGrid');
+                const miniMode = document.getElementById('miniMode');
+                const rangeDisplay = document.getElementById('rangeDisplay');
+                
+                if (isMiniMode) {
+                    mainGrid.style.display = 'none';
+                    miniMode.style.display = 'block';
+                    rangeDisplay.style.display = 'none';
+                } else {
+                    mainGrid.style.display = 'grid';
+                    miniMode.style.display = 'none';
+                    rangeDisplay.style.display = 'flex';
+                }
+            }
+            
+            static resetAll() {
+                FilterManager.clearAllFilters();
+            }
+            
+            static exportCSV() {
+                if (!filteredIndices) return;
+                
+                const filteredData = [];
+                for (let i = 0; i < currentRows; i++) {
+                    if (filteredIndices[i]) {
+                        const row = {};
+                        for (const col of DataExplorerConfig.columns) {
+                            row[col] = data[col][i];
+                        }
+                        filteredData.push(row);
+                    }
+                }
+                
+                const csv = this.arrayToCSV(filteredData, DataExplorerConfig.columns);
+                this.downloadCSV(csv, 'filtered_data.csv');
+            }
+            
+            static arrayToCSV(data, columns) {
+                const header = columns.join(',');
+                const rows = data.map(row => columns.map(col => row[col]).join(','));
+                return [header, ...rows].join('\n');
+            }
+            
+            static downloadCSV(csv, filename) {
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+            
+            static saveSnapshot() {
+                const snapshot = {
+                    timestamp: new Date().toISOString(),
+                    filters: filters,
+                    filteredCount: filteredIndices ? filteredIndices.reduce((sum, val) => sum + val, 0) : 0,
+                    totalCount: currentRows
+                };
+                
+                const dataStr = JSON.stringify(snapshot, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = window.URL.createObjectURL(dataBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'explorer_snapshot.json';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+        }
+        
+        // ============================================================================
+        // INITIALIZATION
+        // ============================================================================
+        
         // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', () => {
             DataExplorer.init();
