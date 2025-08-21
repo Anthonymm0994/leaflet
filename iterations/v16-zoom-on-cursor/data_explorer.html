@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generic Data Explorer - Zoom on Cursor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #0a0a0a; color: #e0e0e0; overflow: hidden; }
+        #loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .progress { width: 400px; height: 6px; background: #333; margin-top: 10px; border-radius: 3px; }
+        .progress-bar { height: 100%; background: #4a9eff; transition: width 0.1s; border-radius: 3px; }
+        #main { display: none; height: 100vh; padding: 8px; }
+        .header { background: #1a1a1a; padding: 8px 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .stats { display: flex; gap: 15px; font-size: 13px; }
+        .stats span { display: flex; align-items: center; gap: 5px; }
+        .stats strong { color: #4a9eff; }
+        button { background: #4a9eff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+        button:hover { background: #3a8eef; }
+        button:active { transform: scale(0.95); }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8px; height: calc(100% - 140px); }
+        .panel { background: #1a1a1a; border-radius: 4px; padding: 8px; position: relative; }
+        .panel-title { font-size: 13px; margin-bottom: 4px; font-weight: 500; }
+        canvas { position: absolute; top: 28px; left: 8px; right: 8px; bottom: 20px; cursor: crosshair; }
+        select { background: #333; color: #e0e0e0; border: 1px solid #555; padding: 3px 6px; border-radius: 3px; position: absolute; top: 4px; right: 8px; font-size: 11px; }
+        #tooltip { position: fixed; background: rgba(0,0,0,0.95); padding: 6px 10px; border-radius: 3px; font-size: 11px; pointer-events: none; display: none; z-index: 1000; border: 1px solid #333; }
+        .mini-mode { display: none; }
+        .mini-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+        .mini-panel { background: #1a1a1a; border-radius: 4px; padding: 12px; text-align: center; }
+        .mini-value { font-size: 24px; font-weight: 600; color: #4a9eff; }
+        .mini-label { font-size: 11px; color: #999; margin-top: 4px; }
+        #statsPanel { position: absolute; top: 60px; right: 16px; background: rgba(26,26,26,0.95); border: 1px solid #333; border-radius: 4px; padding: 12px; font-size: 12px; display: none; z-index: 100; }
+        #statsPanel div { margin-bottom: 4px; }
+        #statsPanel strong { color: #4a9eff; margin-left: 4px; }
+        .range-display { 
+            background: #1a1a1a; 
+            padding: 12px 16px; 
+            border-radius: 4px; 
+            margin-bottom: 8px;
+            display: flex; 
+            gap: 24px; 
+            flex-wrap: wrap;
+        }
+        .mini-mode .range-display { display: none; }
+        .range-item { 
+            display: flex; 
+            flex-direction: column; 
+            min-width: 120px;
+        }
+        .range-label { 
+            font-size: 11px; 
+            color: #888; 
+            margin-bottom: 2px; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .range-value { 
+            font-size: 13px; 
+            color: #4a9eff; 
+            font-weight: 500;
+        }
+        .zoom-controls {
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            display: flex;
+            gap: 4px;
+            z-index: 10;
+        }
+        .zoom-btn {
+            background: #333;
+            color: #e0e0e0;
+            border: 1px solid #555;
+            padding: 2px 6px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 10px;
+            transition: all 0.2s;
+        }
+        .zoom-btn:hover {
+            background: #444;
+        }
+        .zoom-btn.active {
+            background: #4a9eff;
+            border-color: #4a9eff;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div>Loading data...</div>
+        <div class="progress"><div class="progress-bar" id="progress"></div></div>
+        <div id="loadingStatus" style="margin-top: 8px; font-size: 12px; color: #999;"></div>
+    </div>
+    
+    <div id="main">
+        <div class="header">
+            <h3 id="title">Data Explorer - Zoom on Cursor</h3>
+            <div class="stats">
+                <span>Total: <strong id="totalCount">0</strong></span>
+                <span>Filtered: <strong id="filteredCount">0</strong></span>
+                <span>Selected: <strong id="percentFiltered">0%</strong></span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="DataExplorer.toggleStats()">📊 Stats</button>
+                <button id="miniModeBtn" onclick="DataExplorer.toggleMiniMode()">📱 Mini</button>
+                <button onclick="DataExplorer.resetAll()">🔄 Reset</button>
+                <button onclick="DataExplorer.exportCSV()">💾 CSV</button>
+                <button onclick="DataExplorer.saveSnapshot()">📷 Snapshot</button>
+            </div>
+        </div>
+        
+        <div class="range-display" id="rangeDisplay"></div>
+        
+        <div class="grid" id="chartGrid"></div>
+        
+        <div class="mini-mode" id="miniMode">
+            <div class="mini-grid" id="miniGrid"></div>
+        </div>
+    </div>
+    
+    <div id="tooltip"></div>
+    <div id="statsPanel"></div>
+    <script>
+        // ============================================================================
+        // DATA EXPLORER SYSTEM - ZOOM ON CURSOR VERSION
+        // ============================================================================
+        
+        // Configuration object - will be populated by Python script
+        window.DataExplorerConfig = {
+            title: "Generic Data Explorer - Zoom on Cursor",
+            columns: [],
+            data: [],
+            columnTypes: {},
+            chartTypes: [],
+            miniMetrics: []
+        };
+        
+        // ============================================================================
+        // CORE DATA STRUCTURES
+        // ============================================================================
+        
+        let data = {};
+        let filteredIndices = null;
+        let currentRows = 0;
+        let binCache = {};
+        let charts = {};
+        let filters = {};
+        let isMiniMode = false;
+        
+        // ============================================================================
+        // UTILITY FUNCTIONS
+        // ============================================================================
+        
+        function formatCount(count) {
+            if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
+            if (count >= 1000) return (count / 1000).toFixed(1) + 'K';
+            return count.toString();
+        }
+        
+        function formatValue(value, type) {
+            if (type === 'time') {
+                const hours = Math.floor(value / 3600);
+                const minutes = Math.floor((value % 3600) / 60);
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            }
+            if (type === 'number' || type === 'integer') {
+                return value.toLocaleString();
+            }
+            return value.toString();
+        }
+        
+        // ============================================================================
+        // DATA MANAGEMENT
+        // ============================================================================
+        
+        class DataManager {
+            static init(config) {
+                DataExplorerConfig = config;
+                document.getElementById('title').textContent = config.title;
+                
+                // Convert data to TypedArrays for performance
+                data = {};
+                currentRows = config.data.length;
+                
+                for (const col of config.columns) {
+                    const colType = config.columnTypes[col];
+                    const values = config.data.map(row => row[col]);
+                    
+                    if (colType === 'integer') {
+                        data[col] = new Int32Array(values);
+                    } else if (colType === 'number') {
+                        data[col] = new Float32Array(values);
+                    } else if (colType === 'time') {
+                        data[col] = new Float32Array(values);
+                    } else {
+                        data[col] = values; // Keep as array for strings
+                    }
+                }
+                
+                // Initialize filtered indices
+                filteredIndices = new Uint8Array(currentRows);
+                filteredIndices.fill(1);
+                
+                // Initialize filters
+                filters = {};
+                for (const col of config.columns) {
+                    filters[col] = null;
+                }
+                
+                // Pre-bin data for charts
+                this.prebinData();
+                
+                // Update UI
+                DataExplorer.updateStats();
+                DataExplorer.updateRanges();
+                DataExplorer.createChartGrid();
+                DataExplorer.createMiniGrid();
+                
+                // Hide loading, show main
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main').style.display = 'block';
+            }
+            
+            static prebinData() {
+                binCache = {};
+                
+                for (const col of DataExplorerConfig.columns) {
+                    const colType = DataExplorerConfig.columnTypes[col];
+                    const values = data[col];
+                    
+                    if (colType === 'integer' || colType === 'number') {
+                        let min = values[0];
+                        let max = values[0];
+                        for (let i = 1; i < values.length; i++) {
+                            if (values[i] < min) min = values[i];
+                            if (values[i] > max) max = values[i];
+                        }
+                        const numBins = 50;
+                        const binSize = (max - min) / numBins;
+                        
+                        const bins = Array(numBins).fill().map(() => []);
+                        for (let i = 0; i < values.length; i++) {
+                            const binIndex = Math.min(Math.floor((values[i] - min) / binSize), numBins - 1);
+                            bins[binIndex].push(i);
+                        }
+                        
+                        binCache[col] = {
+                            bins,
+                            min,
+                            max,
+                            binSize,
+                            numBins,
+                            maxCount: (() => { let max = 0; for(let b=0; b<bins.length; b++) if(bins[b].length > max) max = bins[b].length; return max; })()
+                        };
+                    } else if (colType === 'time') {
+                        let min = values[0];
+                        let max = values[0];
+                        for (let i = 1; i < values.length; i++) {
+                            if (values[i] < min) min = values[i];
+                            if (values[i] > max) max = values[i];
+                        }
+                        const numBins = 24; // 24 hour bins
+                        const binSize = (max - min) / numBins;
+                        
+                        const bins = Array(numBins).fill().map(() => []);
+                        for (let i = 0; i < values.length; i++) {
+                            const binIndex = Math.min(Math.floor((values[i] - min) / binSize), numBins - 1);
+                            bins[binIndex].push(i);
+                        }
+                        
+                        binCache[col] = {
+                            bins,
+                            min,
+                            max,
+                            binSize,
+                            numBins,
+                            maxCount: (() => { let max = 0; for(let b=0; b<bins.length; b++) if(bins[b].length > max) max = bins[b].length; return max; })()
+                        };
+                    } else if (colType === 'string') {
+                        // For categorical data, count unique values
+                        const uniqueValues = [...new Set(values)];
+                        if (uniqueValues.length <= 20) {
+                            const counts = {};
+                            const filteredCounts = {};
+                            
+                            for (const val of uniqueValues) {
+                                counts[val] = values.filter(v => v === val).length;
+                                filteredCounts[val] = 0;
+                            }
+                            
+                            binCache[col] = {
+                                uniqueValues,
+                                counts,
+                                filteredCounts,
+                                maxCount: Math.max(...Object.values(counts))
+                            };
+                        }
+                    }
+                }
+            }
+            
+            static getFilteredData(column) {
+                if (!filteredIndices) return [];
+                return data[column].filter((_, i) => filteredIndices[i]);
+            }
+            
+            static updateFilteredIndices(newIndices) {
+                filteredIndices = newIndices;
+                DataExplorer.updateStats();
+                DataExplorer.updateRanges();
+                DataExplorer.updateAllCharts();
+            }
+        }
+        
+        // ============================================================================
+        // FILTER MANAGEMENT
+        // ============================================================================
+        
+        class FilterManager {
+            static applyFilters() {
+                if (!filteredIndices) return;
+                
+                const newIndices = new Uint8Array(currentRows);
+                newIndices.fill(1);
+                
+                // Apply each filter
+                for (const [column, filter] of Object.entries(filters)) {
+                    if (!filter) continue;
+                    
+                    if (Array.isArray(filter)) {
+                        // Range filter [min, max]
+                        const [min, max] = filter;
+                        for (let i = 0; i < currentRows; i++) {
+                            if (newIndices[i] && (data[column][i] < min || data[column][i] > max)) {
+                                newIndices[i] = 0;
+                            }
+                        }
+                    } else if (filter instanceof Set) {
+                        // Categorical filter
+                        for (let i = 0; i < currentRows; i++) {
+                            if (newIndices[i] && !filter.has(data[column][i])) {
+                                newIndices[i] = 0;
+                            }
+                        }
+                    }
+                }
+                
+                DataManager.updateFilteredIndices(newIndices);
+            }
+            
+            static setFilter(column, filterValue) {
+                filters[column] = filterValue;
+                this.applyFilters();
+            }
+            
+            static clearFilter(column) {
+                filters[column] = null;
+                this.applyFilters();
+            }
+            
+            static clearAllFilters() {
+                for (const col of Object.keys(filters)) {
+                    filters[col] = null;
+                }
+                filteredIndices.fill(1);
+                DataExplorer.updateStats();
+                DataExplorer.updateRanges();
+                DataExplorer.updateAllCharts();
+            }
+        }
+        
+        // ============================================================================
+        // CHART SYSTEM WITH ZOOMING
+        // ============================================================================
+        
+        class Chart {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 0;
+                this.height = 0;
+                this.resize();
+                
+                // Zoom state
+                this.zoomLevel = 1;
+                this.zoomCenter = { x: 0, y: 0 };
+                this.isZooming = false;
+                this.zoomStart = { x: 0, y: 0 };
+                
+                // Bind events
+                this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
+                this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
+                this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
+                this.canvas.addEventListener('click', this.onClick.bind(this));
+                this.canvas.addEventListener('wheel', this.onWheel.bind(this));
+                window.addEventListener('resize', this.resize.bind(this));
+            }
+            
+            resize() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                this.canvas.width = (rect.width - 16) * dpr;
+                this.canvas.height = (rect.height - 36) * dpr;
+                this.canvas.style.width = (rect.width - 16) + 'px';
+                this.canvas.style.height = (rect.height - 36) + 'px';
+                this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                this.width = rect.width - 16;
+                this.height = rect.height - 36;
+                this.draw();
+            }
+            
+            clear() {
+                this.ctx.fillStyle = '#1a1a1a';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+            }
+            
+            getMousePos(e) {
+                const r = this.canvas.getBoundingClientRect();
+                return {
+                    x: (e.clientX - r.left) * (this.width / r.width),
+                    y: (e.clientY - r.top) * (this.height / r.height)
+                };
+            }
+            
+            // Zoom to mouse cursor position
+            zoomToCursor(mouseX, mouseY, zoomFactor) {
+                const oldZoom = this.zoomLevel;
+                this.zoomLevel = Math.max(1, Math.min(10, this.zoomLevel * zoomFactor));
+                
+                if (this.zoomLevel !== oldZoom) {
+                    // Calculate zoom center relative to chart area
+                    const chartX = mouseX - this.margin.left;
+                    const chartY = mouseY - this.margin.top;
+                    
+                    // Update zoom center to maintain cursor position
+                    this.zoomCenter.x = chartX / this.width;
+                    this.zoomCenter.y = chartY / this.height;
+                    
+                    this.draw();
+                }
+            }
+            
+            // Reset zoom
+            resetZoom() {
+                this.zoomLevel = 1;
+                this.zoomCenter = { x: 0.5, y: 0.5 };
+                this.draw();
+            }
+            
+            onMouseDown(e) {}
+            onMouseMove(e) {}
+            onMouseUp(e) {}
+            onClick(e) {}
+            onWheel(e) {
+                e.preventDefault();
+                const mousePos = this.getMousePos(e);
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                this.zoomToCursor(mousePos.x, mousePos.y, zoomFactor);
+            }
+            draw() {}
+            
+            destroy() {
+                window.removeEventListener('resize', this.resize);
+                this.canvas.replaceWith(this.canvas.cloneNode(true));
+            }
+        }
+        
+        class HistogramChart extends Chart {
+            constructor(canvasId, column) {
+                super(canvasId);
+                this.column = column;
+                this.margin = { top: 10, right: 10, bottom: 40, left: 50 };
+                this.isInteracting = false;
+                this.isDragging = false;
+                this.dragStart = 0;
+                this.selection = null;
+                
+                // Add zoom controls
+                this.addZoomControls();
+            }
+            
+            addZoomControls() {
+                const controls = document.createElement('div');
+                controls.className = 'zoom-controls';
+                
+                const resetBtn = document.createElement('button');
+                resetBtn.className = 'zoom-btn';
+                resetBtn.textContent = '🔍';
+                resetBtn.title = 'Reset Zoom';
+                resetBtn.onclick = () => this.resetZoom();
+                
+                controls.appendChild(resetBtn);
+                this.canvas.parentElement.appendChild(controls);
+            }
+            
+            draw() {
+                this.clear();
+                if (!binCache[this.column]) return;
+                
+                const binData = binCache[this.column];
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                const barWidth = width / binData.bins.length;
+                
+                // Apply zoom transformation
+                this.ctx.save();
+                this.ctx.translate(this.width * this.zoomCenter.x, this.height * this.zoomCenter.y);
+                this.ctx.scale(this.zoomLevel, this.zoomLevel);
+                this.ctx.translate(-this.width * this.zoomCenter.x, -this.height * this.zoomCenter.y);
+                
+                // Calculate counts
+                const counts = new Float32Array(binData.bins.length);
+                const filteredCounts = new Float32Array(binData.bins.length);
+                
+                for (let i = 0; i < binData.bins.length; i++) {
+                    const bin = binData.bins[i];
+                    counts[i] = bin.length;
+                    
+                    if (bin.length > 1000) {
+                        // Sample for performance
+                        let sampled = 0;
+                        const step = Math.max(1, Math.floor(bin.length / 1000));
+                        for (let j = 0; j < bin.length && sampled < 1000; j += step) {
+                            if (filteredIndices[bin[j]]) sampled++;
+                        }
+                        filteredCounts[i] = (sampled / Math.min(1000, bin.length)) * bin.length;
+                    } else {
+                        filteredCounts[i] = bin.filter(idx => filteredIndices[idx]).length;
+                    }
+                }
+                
+                const maxCount = binData.maxCount || Math.max(...counts);
+                
+                this.ctx.translate(this.margin.left, this.margin.top);
+                
+                // Draw bars
+                for (let i = 0; i < binData.bins.length; i++) {
+                    const x = i * barWidth;
+                    const h = (counts[i] / maxCount) * height;
+                    const fh = (filteredCounts[i] / maxCount) * height;
+                    
+                    // Background bar
+                    this.ctx.fillStyle = '#2a2a2a';
+                    this.ctx.fillRect(x, height - h, barWidth - 1, h);
+                    
+                    // Filtered bar
+                    this.ctx.fillStyle = '#4a9eff';
+                    this.ctx.fillRect(x, height - fh, barWidth - 1, fh);
+                }
+                
+                // Selection overlay
+                if (this.selection) {
+                    this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                    this.ctx.strokeStyle = '#feca57';
+                    this.ctx.lineWidth = 2;
+                    const x1 = this.selection[0] * barWidth;
+                    const x2 = (this.selection[1] + 1) * barWidth;
+                    this.ctx.fillRect(x1, 0, x2 - x1, height);
+                    this.ctx.strokeRect(x1, 0, x2 - x1, height);
+                }
+                
+                // Axes
+                this.ctx.strokeStyle = '#444';
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, height);
+                this.ctx.lineTo(width, height);
+                this.ctx.moveTo(0, 0);
+                this.ctx.lineTo(0, height);
+                this.ctx.stroke();
+                
+                // Labels
+                this.ctx.fillStyle = '#888';
+                this.ctx.font = '10px -apple-system, sans-serif';
+                this.ctx.textAlign = 'center';
+                
+                const stepL = Math.max(1, Math.floor(binData.bins.length / 10));
+                for (let i = 0; i < binData.bins.length; i += stepL) {
+                    const x = i * barWidth;
+                    const val = binData.min + i * binData.binSize;
+                    this.ctx.fillText(formatValue(val, DataExplorerConfig.columnTypes[this.column]), x, height + 15);
+                }
+                this.ctx.fillText(formatValue(binData.max, DataExplorerConfig.columnTypes[this.column]), binData.bins.length * barWidth, height + 15);
+                
+                this.ctx.restore();
+                
+                // Draw zoom indicator
+                if (this.zoomLevel > 1) {
+                    this.ctx.save();
+                    this.ctx.fillStyle = 'rgba(74, 158, 255, 0.8)';
+                    this.ctx.font = '12px -apple-system, sans-serif';
+                    this.ctx.textAlign = 'right';
+                    this.ctx.fillText(`Zoom: ${this.zoomLevel.toFixed(1)}x`, this.width - 10, 20);
+                    this.ctx.restore();
+                }
+            }
+            
+            onMouseDown(e) {
+                const p = this.getMousePos(e);
+                if (!this.isInChartArea(p)) return;
+                
+                const x = p.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                const bin = Math.floor(x / (width / binCache[this.column].bins.length));
+                
+                if (bin >= 0 && bin < binCache[this.column].bins.length) {
+                    this.isDragging = true;
+                    this.isInteracting = true;
+                    this.dragStart = bin;
+                }
+            }
+            
+            onMouseMove(e) {
+                if (!this.isDragging) return;
+                
+                const p = this.getMousePos(e);
+                const x = p.x - this.margin.left;
+                const width = this.width - this.margin.left - this.margin.right;
+                
+                if (x >= 0 && x <= width) {
+                    const bin = Math.floor(x / (width / binCache[this.column].bins.length));
+                    if (bin >= 0 && bin < binCache[this.column].bins.length) {
+                        this.selection = [Math.min(this.dragStart, bin), Math.max(this.dragStart, bin)];
+                        this.draw();
+                    }
+                }
+            }
+            
+            onMouseUp() {
+                if (this.isDragging && this.selection) {
+                    const binData = binCache[this.column];
+                    const min = binData.min + this.selection[0] * binData.binSize;
+                    const max = binData.min + (this.selection[1] + 1) * binData.binSize;
+                    
+                    FilterManager.setFilter(this.column, [min, max]);
+                }
+                
+                this.isDragging = false;
+                setTimeout(() => { this.isInteracting = false; }, 100);
+            }
+            
+            onClick(e) {
+                if (!this.isInteracting) {
+                    const p = this.getMousePos(e);
+                    if (this.isInChartArea(p)) {
+                        this.selection = null;
+                        FilterManager.clearFilter(this.column);
+                        this.draw();
+                    }
+                }
+            }
+            
+            isInChartArea(p) {
+                return p.x >= this.margin.left && p.x <= this.width - this.margin.right &&
+                       p.y >= this.margin.top && p.y <= this.height - this.margin.bottom;
+            }
+        }
+        
+        class CategoricalChart extends Chart {
+            constructor(canvasId, column) {
+                super(canvasId);
+                this.column = column;
+                this.margin = { top: 20, right: 10, bottom: 40, left: 60 };
+                this.selected = new Set();
+                
+                // Add zoom controls
+                this.addZoomControls();
+            }
+            
+            addZoomControls() {
+                const controls = document.createElement('div');
+                controls.className = 'zoom-controls';
+                
+                const resetBtn = document.createElement('button');
+                resetBtn.className = 'zoom-btn';
+                resetBtn.textContent = '🔍';
+                resetBtn.title = 'Reset Zoom';
+                resetBtn.onclick = () => this.resetZoom();
+                
+                controls.appendChild(resetBtn);
+                this.canvas.parentElement.appendChild(controls);
+            }
+            
+            draw() {
+                this.clear();
+                if (!binCache[this.column]) return;
+                
+                const binData = binCache[this.column];
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                
+                // Apply zoom transformation
+                this.ctx.save();
+                this.ctx.translate(this.width * this.zoomCenter.x, this.height * this.zoomCenter.y);
+                this.ctx.scale(this.zoomLevel, this.zoomLevel);
+                this.ctx.translate(-this.width * this.zoomCenter.x, -this.height * this.zoomCenter.y);
+                
+                const uniqueValues = binData.uniqueValues;
+                const barWidth = width / uniqueValues.length;
+                const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3'];
+                
+                this.ctx.translate(this.margin.left, this.margin.top);
+                
+                // Draw bars
+                for (let i = 0; i < uniqueValues.length; i++) {
+                    const x = i * barWidth;
+                    const value = uniqueValues[i];
+                    const count = binData.counts[value];
+                    const filteredCount = binData.filteredCounts[value] || 0;
+                    
+                    const h = (count / binData.maxCount) * height;
+                    const fh = (filteredCount / binData.maxCount) * height;
+                    
+                    // Background bar
+                    this.ctx.fillStyle = '#2a2a2a';
+                    this.ctx.fillRect(x, height - h, barWidth - 1, h);
+                    
+                    // Filtered bar
+                    const isSelected = this.selected.size === 0 || this.selected.has(value);
+                    this.ctx.fillStyle = isSelected ? colors[i % colors.length] : '#444';
+                    this.ctx.fillRect(x, height - fh, barWidth - 1, fh);
+                    
+                    // Selection border
+                    if (this.selected.has(value)) {
+                        this.ctx.strokeStyle = '#feca57';
+                        this.ctx.lineWidth = 2;
+                        this.ctx.strokeRect(x - 1, height - h - 1, barWidth + 2, h + 2);
+                    }
+                    
+                    // Label
+                    this.ctx.fillStyle = '#888';
+                    this.ctx.font = '10px -apple-system, sans-serif';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(value.toString(), x + barWidth / 2, height + 20);
+                }
+                
+                this.ctx.restore();
+                
+                // Draw zoom indicator
+                if (this.zoomLevel > 1) {
+                    this.ctx.save();
+                    this.ctx.fillStyle = 'rgba(74, 158, 255, 0.8)';
+                    this.ctx.font = '12px -apple-system, sans-serif';
+                    this.ctx.textAlign = 'right';
+                    this.ctx.fillText(`Zoom: ${this.zoomLevel.toFixed(1)}x`, this.width - 10, 20);
+                    this.ctx.restore();
+                }
+            }
+            
+            onMouseDown(e) {
+                const p = this.getMousePos(e);
+                const width = this.width - this.margin.left - this.margin.right;
+                const height = this.height - this.margin.top - this.margin.bottom;
+                
+                const x = p.x - this.margin.left;
+                const y = p.y - this.margin.top;
+                
+                if (x >= 0 && x <= width && y >= 0 && y <= height) {
+                    const barWidth = width / binCache[this.column].uniqueValues.length;
+                    const barIndex = Math.floor(x / barWidth);
+                    
+                    if (barIndex >= 0 && barIndex < binCache[this.column].uniqueValues.length) {
+                        const value = binCache[this.column].uniqueValues[barIndex];
+                        
+                        if (this.selected.has(value)) {
+                            this.selected.delete(value);
+                        } else {
+                            this.selected.add(value);
+                        }
+                        
+                        // Update filter
+                        if (this.selected.size > 0 && this.selected.size < binCache[this.column].uniqueValues.length) {
+                            FilterManager.setFilter(this.column, this.selected);
+                        } else {
+                            FilterManager.clearFilter(this.column);
+                        }
+                        
+                        this.draw();
+                    }
+                }
+            }
+        }
+        
+        class TimeChart extends HistogramChart {
+            constructor(canvasId, column) {
+                super(canvasId, column);
+            }
+            
+            // Inherits all functionality from HistogramChart including zooming
+        }
+        
+        // ============================================================================
+        // MAIN DATA EXPLORER CLASS
+        // ============================================================================
+        
+        class DataExplorer {
+            static init() {
+                if (window.DataExplorerConfig) {
+                    DataManager.init(window.DataExplorerConfig);
+                } else {
+                    // Default configuration for testing
+                    this.createDefaultConfig();
+                }
+            }
+            
+            static createDefaultConfig() {
+                // Create sample data for testing
+                const sampleData = [];
+                for (let i = 0; i < 1000; i++) {
+                    sampleData.push({
+                        id: i,
+                        age: Math.floor(Math.random() * 50) + 20,
+                        salary: Math.floor(Math.random() * 80000) + 30000,
+                        department: ['Engineering', 'Sales', 'Marketing', 'HR'][Math.floor(Math.random() * 4)],
+                        experience: Math.floor(Math.random() * 20) + 1
+                    });
+                }
+                
+                const config = {
+                    title: "Sample Data Explorer - Zoom on Cursor",
+                    columns: ["id", "age", "salary", "department", "experience"],
+                    data: sampleData,
+                    columnTypes: {
+                        "id": "integer",
+                        "age": "integer",
+                        "salary": "integer",
+                        "department": "string",
+                        "experience": "integer"
+                    },
+                    chartTypes: [
+                        { type: "histogram", column: "age", title: "Age Distribution" },
+                        { type: "histogram", column: "salary", title: "Salary Distribution" },
+                        { type: "categorical", column: "department", title: "Department Breakdown" },
+                        { type: "histogram", column: "experience", title: "Experience Distribution" }
+                    ],
+                    miniMetrics: [
+                        { id: "filtered", label: "Filtered Rows" },
+                        { id: "percent", label: "of Total" },
+                        { id: "avg_age", label: "Avg Age" },
+                        { id: "avg_salary", label: "Avg Salary" }
+                    ]
+                };
+                
+                DataManager.init(config);
+            }
+            
+            static createChartGrid() {
+                const grid = document.getElementById('chartGrid');
+                grid.innerHTML = '';
+                
+                for (const chartConfig of DataExplorerConfig.chartTypes) {
+                    const panel = document.createElement('div');
+                    panel.className = 'panel';
+                    
+                    const title = document.createElement('div');
+                    title.className = 'panel-title';
+                    title.textContent = chartConfig.title;
+                    panel.appendChild(title);
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.id = `canvas_${chartConfig.column}`;
+                    panel.appendChild(canvas);
+                    
+                    grid.appendChild(panel);
+                    
+                    // Create chart instance
+                    let chart;
+                    if (chartConfig.type === 'histogram') {
+                        chart = new HistogramChart(`canvas_${chartConfig.column}`, chartConfig.column);
+                    } else if (chartConfig.type === 'categorical') {
+                        chart = new CategoricalChart(`canvas_${chartConfig.column}`, chartConfig.column);
+                    } else if (chartConfig.type === 'time') {
+                        chart = new TimeChart(`canvas_${chartConfig.column}`, chartConfig.column);
+                    }
+                    
+                    if (chart) {
+                        charts[chartConfig.column] = chart;
+                    }
+                }
+            }
+            
+            static createMiniGrid() {
+                const miniGrid = document.getElementById('miniGrid');
+                miniGrid.innerHTML = '';
+                
+                for (const metric of DataExplorerConfig.miniMetrics) {
+                    const panel = document.createElement('div');
+                    panel.className = 'mini-panel';
+                    
+                    const value = document.createElement('div');
+                    value.className = 'mini-value';
+                    value.id = `mini_${metric.id}`;
+                    value.textContent = '0';
+                    panel.appendChild(value);
+                    
+                    const label = document.createElement('div');
+                    label.className = 'mini-label';
+                    label.textContent = metric.label;
+                    panel.appendChild(label);
+                    
+                    miniGrid.appendChild(panel);
+                }
+            }
+            
+            static updateStats() {
+                if (!filteredIndices) return;
+                
+                const totalCount = currentRows;
+                const filteredCount = filteredIndices.reduce((sum, val) => sum + val, 0);
+                const percent = totalCount > 0 ? ((filteredCount / totalCount) * 100).toFixed(1) : 0;
+                
+                document.getElementById('totalCount').textContent = formatCount(totalCount);
+                document.getElementById('filteredCount').textContent = formatCount(filteredCount);
+                document.getElementById('percentFiltered').textContent = percent + '%';
+                
+                // Update mini metrics
+                this.updateMiniMetrics();
+            }
+            
+            static updateMiniMetrics() {
+                if (!filteredIndices) return;
+                
+                const filteredCount = filteredIndices.reduce((sum, val) => sum + val, 0);
+                const totalCount = currentRows;
+                
+                // Update filtered count
+                const filteredElement = document.getElementById('mini_filtered');
+                if (filteredElement) {
+                    filteredElement.textContent = formatCount(filteredCount);
+                }
+                
+                // Update percentage
+                const percentElement = document.getElementById('mini_percent');
+                if (percentElement) {
+                    const percent = totalCount > 0 ? ((filteredCount / totalCount) * 100).toFixed(1) : 0;
+                    percentElement.textContent = percent + '%';
+                }
+                
+                // Update averages
+                for (const metric of DataExplorerConfig.miniMetrics) {
+                    if (metric.id.startsWith('avg_')) {
+                        const column = metric.id.substring(4);
+                        if (data[column] && DataExplorerConfig.columnTypes[column] === 'number' || DataExplorerConfig.columnTypes[column] === 'integer') {
+                            const filteredData = data[column].filter((_, i) => filteredIndices[i]);
+                            if (filteredData.length > 0) {
+                                const avg = filteredData.reduce((sum, val) => sum + val, 0) / filteredData.length;
+                                const element = document.getElementById(`mini_${metric.id}`);
+                                if (element) {
+                                    element.textContent = formatValue(avg, DataExplorerConfig.columnTypes[column]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            static updateRanges() {
+                if (!filteredIndices) return;
+                
+                const rangeDisplay = document.getElementById('rangeDisplay');
+                rangeDisplay.innerHTML = '';
+                
+                for (const col of DataExplorerConfig.columns) {
+                    const colType = DataExplorerConfig.columnTypes[col];
+                    if (colType === 'number' || colType === 'integer') {
+                        const filteredData = data[col].filter((_, i) => filteredIndices[i]);
+                        if (filteredData.length > 0) {
+                            const min = Math.min(...filteredData);
+                            const max = Math.max(...filteredData);
+                            const avg = filteredData.reduce((sum, val) => sum + val, 0) / filteredData.length;
+                            
+                            const rangeItem = document.createElement('div');
+                            rangeItem.className = 'range-item';
+                            
+                            const label = document.createElement('div');
+                            label.className = 'range-label';
+                            label.textContent = col;
+                            rangeItem.appendChild(label);
+                            
+                            const value = document.createElement('div');
+                            value.className = 'range-value';
+                            value.textContent = `${formatValue(min, colType)} - ${formatValue(max, colType)} (avg: ${formatValue(avg, colType)})`;
+                            rangeItem.appendChild(value);
+                            
+                            rangeDisplay.appendChild(rangeItem);
+                        }
+                    }
+                }
+            }
+            
+            static updateAllCharts() {
+                for (const chart of Object.values(charts)) {
+                    chart.draw();
+                }
+            }
+            
+            static toggleStats() {
+                const panel = document.getElementById('statsPanel');
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                
+                if (panel.style.display === 'block') {
+                    this.updateStatsPanel();
+                }
+            }
+            
+            static updateStatsPanel() {
+                const panel = document.getElementById('statsPanel');
+                panel.innerHTML = '';
+                
+                if (!filteredIndices) return;
+                
+                const totalCount = currentRows;
+                const filteredCount = filteredIndices.reduce((sum, val) => sum + val, 0);
+                
+                const stats = [
+                    { label: 'Total Rows', value: formatCount(totalCount) },
+                    { label: 'Filtered Rows', value: formatCount(filteredCount) },
+                    { label: 'Filtered Percentage', value: ((filteredCount / totalCount) * 100).toFixed(1) + '%' }
+                ];
+                
+                for (const stat of stats) {
+                    const div = document.createElement('div');
+                    div.innerHTML = `${stat.label}: <strong>${stat.value}</strong>`;
+                    panel.appendChild(div);
+                }
+            }
+            
+            static toggleMiniMode() {
+                isMiniMode = !isMiniMode;
+                const mainGrid = document.getElementById('chartGrid');
+                const miniMode = document.getElementById('miniMode');
+                const rangeDisplay = document.getElementById('rangeDisplay');
+                
+                if (isMiniMode) {
+                    mainGrid.style.display = 'none';
+                    miniMode.style.display = 'block';
+                    rangeDisplay.style.display = 'none';
+                } else {
+                    mainGrid.style.display = 'grid';
+                    miniMode.style.display = 'none';
+                    rangeDisplay.style.display = 'flex';
+                }
+            }
+            
+            static resetAll() {
+                FilterManager.clearAllFilters();
+                // Reset zoom on all charts
+                for (const chart of Object.values(charts)) {
+                    chart.resetZoom();
+                }
+            }
+            
+            static exportCSV() {
+                if (!filteredIndices) return;
+                
+                const filteredData = [];
+                for (let i = 0; i < currentRows; i++) {
+                    if (filteredIndices[i]) {
+                        const row = {};
+                        for (const col of DataExplorerConfig.columns) {
+                            row[col] = data[col][i];
+                        }
+                        filteredData.push(row);
+                    }
+                }
+                
+                const csv = this.arrayToCSV(filteredData, DataExplorerConfig.columns);
+                this.downloadCSV(csv, 'filtered_data.csv');
+            }
+            
+            static arrayToCSV(data, columns) {
+                const header = columns.join(',');
+                const rows = data.map(row => columns.map(col => row[col]).join(','));
+                return [header, ...rows].join('\n');
+            }
+            
+            static downloadCSV(csv, filename) {
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+            
+            static saveSnapshot() {
+                const snapshot = {
+                    timestamp: new Date().toISOString(),
+                    filters: filters,
+                    filteredCount: filteredIndices ? filteredIndices.reduce((sum, val) => sum + val, 0) : 0,
+                    totalCount: currentRows,
+                    zoomLevels: Object.fromEntries(
+                        Object.entries(charts).map(([col, chart]) => [col, chart.zoomLevel])
+                    )
+                };
+                
+                const dataStr = JSON.stringify(snapshot, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = window.URL.createObjectURL(dataBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'explorer_snapshot.json';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+        }
+        
+        // ============================================================================
+        // INITIALIZATION
+        // ============================================================================
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            DataExplorer.init();
+        });
+    </script>
+</body>
+</html>
